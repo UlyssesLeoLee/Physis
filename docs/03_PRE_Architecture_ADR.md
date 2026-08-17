@@ -62,7 +62,7 @@
 
 **决策**：Dynamic 3DGS/4DGS 仅作为 `ObservationBackend` 的一种未来实现，产出必须落到与仿真侧相同的 `StandardPhysicalResponse` schema，核心 Runtime 不感知 3DGS 存在。
 
-**理由**：3DGS 是观测/重建技术，其表示（Gaussian 数量、协方差、拓扑）与物理语义无直接映射关系，且技术本身快速演进（3DGS→4DGS→未来方法）。若核心数据模型绑定 3DGS 表示，未来技术更替将引发核心重构。将其限定为 Observation Backend 的一种实现，是 PRE-FR-015 与需求第12节"禁止强耦合"的直接落实。
+**理由**：3DGS 是观测/重建技术，其表示（Gaussian 数量、协方差、拓扑）与物理语义无直接映射关系，且技术本身快速演进（3DGS→4DGS→未来方法）。若核心数据模型绑定 3DGS 表示，未来技术更替将引发核心重构。将其限定为 Observation Backend 的一种实现，是 PRE-FR-015 与非目标 NG2（不实现 3DGS/4DGS 重建或渲染管线本身）所要求的"禁止强耦合"的直接落实。
 
 **后果**：V0.1 不实现该 backend，仅预留 trait；Phase 2 设计必须证明"能把 3DGS 输出转成 Standard Response 且保留足够物理信息"，否则该抽象需重新评估。
 

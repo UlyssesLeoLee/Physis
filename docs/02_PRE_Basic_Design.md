@@ -168,7 +168,7 @@ PhysicsExperience
 
 ## 8. Standard Physical Response Model（关键设计）
 
-四层严格分离（对应 PRE-FR-003、需求第9节）：
+四层严格分离（对应 PRE-FR-003、PRE-PHY-001）：
 
 1. **Raw Solver State**：solver 私有，不对外暴露格式约束。
 2. **Standard Physical Response**：solver-independent，字段：
@@ -185,7 +185,7 @@ PhysicsExperience
 
 ## 9. Physical Signature Design
 
-MVP 覆盖需求第3节八个特征域中的子集（其余留 Open Question，非阻塞）：
+MVP 覆盖 PRE-FR-004 所要求的八个特征域中的子集（其余留 Open Question，非阻塞）：
 
 | 域 | MVP 覆盖字段（示例） |
 |---|---|
@@ -202,7 +202,7 @@ MVP 覆盖需求第3节八个特征域中的子集（其余留 Open Question，�
 
 ## 10. Embedding Architecture（Multi-Vector）
 
-MVP 子向量（对应需求第5节，选取三类降低复杂度）：
+MVP 子向量（对应 PRE-FR-005 与 PRE-VEC-004，选取三类降低复杂度）：
 
 - `behavior_vector`：宏观运动学统计特征拼接（低维，~16-32 dim）
 - `deformation_vector`：形变/材料相关特征拼接
@@ -243,7 +243,7 @@ Atlas = 三种存储的组合视图，而非单一数据库：
 
 三者通过 `experience_id` 关联，查询 metadata/embedding 不触发 blob 读取（PRE-DATA-002）。
 
-**图数据库结论（对应需求第19节 + ADR-006）**：V0.1 不引入图数据库。Entity/Relation/Field 结构在 MVP 规模下用 relational store 的外键/JSON字段即可表达，图查询模式（多跳遍历）尚未被 MVP 场景要求。留 Open Question，待 Phase 3（Inverse Physics 复杂约束图）重新评估。
+**图数据库结论（对应 PRE-DATA-004 + ADR-006）**：V0.1 不引入图数据库。Entity/Relation/Field 结构在 MVP 规模下用 relational store 的外键/JSON字段即可表达，图查询模式（多跳遍历）尚未被 MVP 场景要求。留 Open Question，待 Phase 3（Inverse Physics 复杂约束图）重新评估。
 
 ## 13. Simulation Verification Pipeline
 
@@ -281,7 +281,7 @@ trait ObservationBackend {
 }
 ```
 
-V0.1 唯一实现：`SimulationBackend`（用留出仿真的 Standard Physical Response 冒充"观测"，用于验证 H1~H5 而不依赖真实数据）。`Dynamic3DGSBackend` 等仅在 trait 层面预留签名，不实现（NG2，对应需求第12节的解耦要求）。
+V0.1 唯一实现：`SimulationBackend`（用留出仿真的 Standard Physical Response 冒充"观测"，用于验证 H1~H5 而不依赖真实数据）。`Dynamic3DGSBackend` 等仅在 trait 层面预留签名，不实现（对应非目标 NG2 与 PRE-FR-015 的解耦要求）。
 
 ## 16. Future Dynamic 3DGS Adapter（占位）
 
@@ -411,7 +411,7 @@ MVP：单机命令行工具/库，无服务化部署。CI 中跑单元测试 + �
 
 ## 31. Evolution Strategy
 
-每次架构演进必须回答「解决了哪个已被实验观察到的问题」（需求第33节原则）。已知触发条件（非承诺时间表）：
+每次架构演进必须回答「解决了哪个已被实验观察到的问题」（本项目「涌现式设计」原则：Hypothesis → Minimal Architecture → Experiment → Evidence → Architecture Evolution；无法回答者不加入）。已知触发条件（非承诺时间表）：
 
 - 检索延迟超出 PRE-VEC-001 目标 → 评估 PQ/量化或分片索引。
 - Metadata 组合导致 post-filter 召回不足 → 评估 pre-filter 或专用过滤索引。
