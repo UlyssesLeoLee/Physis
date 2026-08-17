@@ -6,7 +6,7 @@
 |---|---|
 | 文书编号 | PRE-DOC-01 |
 | 文书名称 | Physical Retrieval Engine 需求定义书 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.3 |
 | 状态 | Draft — Baseline for Basic Design（尚未经 Stakeholder 正式承认） |
 | 作成者 | PRE 架构设计团队（本轮由 Claude 代笔起草） |
 | 承认者 | 未定（待 ST-05 项目负责人指定） |
@@ -20,6 +20,7 @@
 | v0.1 | 2026-08-17 | 初版起草：25类需求 + Traceability ID 体系确立 | Claude |
 | v0.1.1 | 2026-08-17 | 按 IPA 文书标准补充文书管理表、承认栏、非机能要求グレード对齐、需求优先度与需求一览表 | Claude |
 | v0.1.2 | 2026-08-17 | 新增第29节 Bevy 引擎集成需求（PRE-BEVY-001~006），补充 NG1/系统边界澄清、AC-06、OQ-07；优先度表与需求索引同步更新 | Claude |
+| v0.1.3 | 2026-08-17 | 交叉审查修正：PRE-BEVY-001 与 AC-06 原先枚举的 crate 清单不一致（6 个 vs 4 个）且均遗漏 pre-signature/pre-encoder/pre-gen/pre-cli 等成员，统一改为「除 pre-bevy 外的全部 workspace 成员」以消除枚举漂移 | Claude |
 
 ## 承认栏
 
@@ -196,7 +197,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - AC-03：新增一种 solver 插件（在已支持的三类之外做小改动验证）不需要修改 Retrieval/Atlas 核心代码，仅需实现 SolverPlugin trait 与 Response 转换器。
 - AC-04：任意一次检索结果可通过 Observability 接口展示评分明细。
 - AC-05：至少一条 Physics Experience 完成「生成 → 验证 → 写回 Atlas → 重新检索命中」闭环。
-- AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且 `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas` 四个核心 crate 的 `Cargo.toml` 不出现 `bevy` 依赖（验证 ADR-009 的解耦是否落实，而非仅停留在文档声明）。
+- AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且**除 `pre-bevy` 外的全部 workspace 成员** crate 的依赖树均不出现 `bevy`（验证 ADR-009 的解耦是否落实，而非仅停留在文档声明；范围定义与 PRE-BEVY-001 一致）。
 
 ## 21. Risks
 
@@ -273,7 +274,8 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 **设计立场（与 ADR-004 同构）**：正如 3DGS 被限定为 Observation Backend 的一种实现而不允许核心耦合（ADR-004），Bevy 集成必须被限定为独立的 Engine Adapter crate（`pre-bevy`），核心 crate（`pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine`）不得依赖 Bevy。理由相同：Bevy 本身也在快速演进（OQ-07），若核心数据模型绑定 Bevy 的 ECS 组件/资源类型，Bevy 每次破坏性升级都会波及核心。此立场记为 ADR-009，详见 03_PRE_Architecture_ADR.md。
 
-- **PRE-BEVY-001**：`pre-core`、`pre-solver-*`、`pre-retrieval`、`pre-atlas`、`pre-verify`、`pre-refine` 六个核心 crate 的 `Cargo.toml` 不得出现 `bevy` 直接或传递依赖；`pre-bevy` 是唯一允许依赖 Bevy 的 crate，且必须通过 Cargo feature 或独立 workspace member 的方式保证不启用 `pre-bevy` 时整个核心系统可正常编译运行。
+- **PRE-BEVY-001**：**除 `pre-bevy` 外的全部 workspace 成员**（截至本版本为 `pre-core`、`pre-solver-api`、`pre-solver-rigid`、`pre-solver-xpbd`、`pre-solver-mpm`、`pre-solver-fem-stub`、`pre-signature`、`pre-encoder`、`pre-atlas`、`pre-retrieval`、`pre-verify`、`pre-refine`、`pre-gen`、`pre-cli`，清单以 02号文档 §4 为准）的 `Cargo.toml` 不得出现 `bevy` 直接或传递依赖；`pre-bevy` 是唯一允许依赖 Bevy 的 crate，且必须通过 Cargo feature 或独立 workspace member 的方式保证不启用 `pre-bevy` 时整个核心系统可正常编译运行。
+  > 本条刻意以「除 `pre-bevy` 外的全部成员」而非固定枚举来定义范围：02号文档 §4 已预告未来可能新增 `pre-encoder-ml` 等 crate，采用枚举会在每次新增 crate 时留下未被约束覆盖的缺口（且该缺口不会被任何检查发现）。括号内的清单仅为当前快照，供读者对照，不构成范围上限。
 - **PRE-BEVY-002**：`pre-bevy` 必须提供一个 Bevy `Plugin`，能够将一条已生成/检索到的 `PhysicsExperience` 的 `StandardPhysicalResponse` 回放为 Bevy 场景中对应实体的 `Transform` 时间序列动画（按 §3.3 定义的 `LandmarkId` 与 Bevy 实体建立映射）。
 - **PRE-BEVY-003**：由于 PRE 仿真按固定 `dt`/`substeps` 产生离散采样点，而 Bevy 应用通常以可变帧率渲染，`pre-bevy` 必须在采样点之间做插值（至少线性插值），不得要求 Bevy 应用的帧率与 PRE 采样率对齐。
 - **PRE-BEVY-004**：`pre-bevy` 应提供从 Bevy 系统内发起检索/验证请求（调用 `pre-retrieval`/`pre-verify`）的桥接方式，且由于检索/验证可能耗时超过一帧，桥接必须是非阻塞的（如通过 Bevy 的异步任务机制或独立线程 + 消息通道），不得阻塞 Bevy 主 Schedule。

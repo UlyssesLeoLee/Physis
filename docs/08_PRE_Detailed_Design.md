@@ -6,9 +6,9 @@
 |---|---|
 | 文书编号 | PRE-DOC-08 |
 | 文书名称 | Physical Retrieval Engine 详细设计书 |
-| 版本 | v0.1.1 |
+| 版本 | v0.1.2 |
 | 状态 | Draft |
-| 输入基线 | 02_PRE_Basic_Design.md（v0.1.2）、03_PRE_Architecture_ADR.md（v0.1.2） |
+| 输入基线 | 02_PRE_Basic_Design.md（v0.1.3）、03_PRE_Architecture_ADR.md（v0.1.2） |
 | 关联文书 | 04（追踪矩阵，本文书新增内容追加映射见文末）、09（测试用例一览） |
 | 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30；以及 §33 定义的 Bevy 回放能力）；FEM 与 Bevy 场景导入方向（PRE-BEVY-005）仍为 stub/Phase 2，不在本文书详细展开 |
 
@@ -18,6 +18,7 @@
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：crate 内部设计、数据结构、trait 签名、核心算法、错误模型、存储 schema | Claude |
 | v0.1.1 | 2026-08-17 | 新增 §18 `pre-bevy` 详细设计，响应 02号文档 v0.1.2 新增的 §33 Engine Integration Architecture | Claude |
+| v0.1.2 | 2026-08-17 | §18 前提约束表述由「核心六个 crate」改为「除 pre-bevy 外的全部 workspace 成员」，与 PRE-BEVY-001 v0.1.3 定义一致 | Claude |
 
 ## 承认栏
 
@@ -768,7 +769,7 @@ pre-cli gen --experiment-def <path> --n-samples <n> --strategy lhs
 
 ## 18. `pre-bevy`：Bevy 引擎适配层详细设计
 
-本节是 02号文档 §33 的下一层，给出 `pre-bevy` 的具体类型定义、系统调度顺序与数值算法。前提约束（不重复展开，见 02号文档 §33.1 与 ADR-009）：`pre-bevy` 单向依赖 `pre-core`，核心六个 crate 对其零依赖。
+本节是 02号文档 §33 的下一层，给出 `pre-bevy` 的具体类型定义、系统调度顺序与数值算法。前提约束（不重复展开，见 02号文档 §33.1 与 ADR-009）：`pre-bevy` 单向依赖 `pre-core`，除 `pre-bevy` 外的全部 workspace 成员对 `bevy` 零依赖（范围定义见 PRE-BEVY-001）。
 
 ### 18.1 Cargo 依赖与 feature 设计
 

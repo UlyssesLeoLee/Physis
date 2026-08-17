@@ -6,8 +6,8 @@
 |---|---|
 | 文书编号 | PRE-DOC-02 |
 | 文书名称 | Physical Retrieval Engine 基本设计书 |
-| 版本 | v0.1.2 |
-| 状态 | Draft — 基于 01号文档 v0.1.2 需求基线编制，尚未经承认 |
+| 版本 | v0.1.3 |
+| 状态 | Draft — 基于 01号文档 v0.1.3 需求基线编制，尚未经承认 |
 | 输入基线 | 01_PRE_Requirements.md（需求变更后须重新走查本文书是否受影响） |
 | 关联文书 | 03（ADR，决策理由）、04（追踪矩阵）、05（自审发现的 ISS 已回填至相应章节） |
 
@@ -18,6 +18,7 @@
 | v0.1 | 2026-08-17 | 初版：32章节架构设计 | Claude |
 | v0.1.1 | 2026-08-17 | 补充文书管理表、承认栏；按自审结果（05号文档 ISS-006/009）在 §13/§26 补充参数不可辨识暴露机制与召回不足监控说明 | Claude |
 | v0.1.2 | 2026-08-17 | 响应 01号文档 v0.1.2 新增的 Bevy 集成需求（PRE-BEVY-001~006）：§4 追加 `pre-bevy` crate，新增 §33 Engine Integration Architecture | Claude |
+| v0.1.3 | 2026-08-17 | 交叉审查修正：§33.5 的 bevy 依赖检查范围由枚举 4 个 crate 改为「除 pre-bevy 外的全部 workspace 成员」，并要求检查脚本从成员列表动态枚举 | Claude |
 
 ## 承认栏
 
@@ -496,6 +497,6 @@ struct PreQueryResults(HashMap<QueryId, CandidateExplanation>);  // 后台任务
 
 ### 33.5 MVP 范围内的验收方式
 
-对应 01号文档 AC-06：提供一个最小 Bevy 示例应用（`examples/pre-bevy-playback` 或等价位置，具体路径留实现阶段确定），加载一条已生成的 `PhysicsExperience`，回放为实体动画；CI 中以 `cargo tree` 或等价工具检查 `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas` 四个 crate 的依赖树不包含 `bevy`，作为 PRE-BEVY-001 的自动化验证手段（而非仅靠人工代码评审）。
+对应 01号文档 AC-06：提供一个最小 Bevy 示例应用（`examples/pre-bevy-playback` 或等价位置，具体路径留实现阶段确定），加载一条已生成的 `PhysicsExperience`，回放为实体动画；CI 中以 `cargo tree` 或等价工具**遍历除 `pre-bevy` 外的全部 workspace 成员**，检查其依赖树均不包含 `bevy`，作为 PRE-BEVY-001 的自动化验证手段（而非仅靠人工代码评审）。检查脚本必须从 workspace 成员列表动态枚举，而非硬编码 crate 名单——否则新增 crate 时会自动逃逸出检查范围（与 PRE-BEVY-001 采用「全部成员」而非固定枚举的理由相同）。
 
 对应需求：PRE-BEVY-001~006。

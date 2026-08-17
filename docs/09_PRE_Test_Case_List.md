@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-09 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.3 |
 | 状态 | Draft |
-| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.1） |
+| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.2） |
 | 说明 | 本文书是 IPA 详細設計書惯例中「テストケース一覧」的落实：为每个需要验证的行为给出用例 ID、前置条件、输入、期望输出、对应需求/设计出处，供实现阶段直接转化为自动化测试。本文书不包含 H1~H5 假设验证实验（见 06 号文档），仅覆盖单元/集成级测试用例。 |
 | Mock 支持 | 部分用例适合使用 10~12 号文档定义的 `pre-testkit`（Mock 项目）加速执行、精确构造边界情形；具体哪些 testkit 组件对应哪些用例，见 12_PRE_Testkit_Detailed_Design.md §8 映射表，本文书不重复标注每一行以避免双份维护漂移。是否使用 mock 与是否需要真实层集成测试兜底，遵循 11_PRE_Testkit_Basic_Design.md §2 的双层测试策略。 |
 
@@ -18,6 +18,7 @@
 | v0.1 | 2026-08-17 | 初版：TC-CORE / TC-SOLVER / TC-SIG / TC-ENC / TC-RET / TC-VER / TC-REF / TC-GEN / TC-ATLAS / TC-E2E 十类用例 |
 | v0.1.1 | 2026-08-17 | 新增 TC-BEVY 用例类，对应 08号文档 §18 `pre-bevy` 详细设计 |
 | v0.1.2 | 2026-08-17 | 新增"Mock 支持"说明，指向新增的 10~12 号文档（`pre-testkit` 需求/基本设计/详细设计） |
+| v0.1.3 | 2026-08-17 | TC-BEVY-001 改为从 cargo metadata 动态枚举 workspace 成员，避免硬编码名单导致新增 crate 逃逸检查 |
 
 ---
 
@@ -117,7 +118,7 @@
 
 | ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
 |---|---|---|---|---|
-| TC-BEVY-001 | `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine` 六个 crate 已构建 | 运行 `cargo tree -p <每个核心 crate>` | 依赖树输出中不出现 `bevy` | PRE-BEVY-001, 08§18.1, AC-06 |
+| TC-BEVY-001 | workspace 全部成员已构建 | 从 `cargo metadata` 动态枚举 workspace 成员，排除 `pre-bevy` 后对每个成员运行 `cargo tree -p <crate>` | 所有被检查 crate 的依赖树输出中均不出现 `bevy`；新增 crate 时自动纳入检查范围（不依赖硬编码名单） | PRE-BEVY-001, 08§18.1, AC-06 |
 | TC-BEVY-002 | 未启用 `pre-bevy` 的 workspace 构建 | `cargo build --workspace --exclude pre-bevy` | 构建成功，不拉取/编译 bevy 及其依赖 | PRE-BEVY-001 |
 | TC-BEVY-003 | 一条完整 `StandardPhysicalResponse`，`sample_times = [0.0, 1.0, 2.0]` | `interpolate_position(response, landmark, t=0.5)` | 返回 `t=0.0` 与 `t=1.0` 两帧 position 的线性插值结果（alpha=0.5） | PRE-BEVY-003, 08§18.3 |
 | TC-BEVY-004 | 同上 response | `interpolate_position(response, landmark, t=-1.0)` 与 `t=5.0` | 分别钳制返回首帧与末帧 position，不 panic、不外推 | 08§18.3（Bracket::Before/After） |

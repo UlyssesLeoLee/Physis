@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-04 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.3 |
 | 状态 | Draft |
 | 覆盖率 | 53/53 需求 ID 全覆盖（含 PRE-BEVY-001~006，见改订履历） |
 
@@ -16,6 +16,7 @@
 | v0.1 | 2026-08-17 | 初版矩阵，PRE-API-001/002 合并为一行 |
 | v0.1.1 | 2026-08-17 | 自审发现合并行导致按 ID 检索遗漏，拆分为独立两行，恢复 47/47 覆盖 |
 | v0.1.2 | 2026-08-17 | 新增 PRE-BEVY-001~006 六行，覆盖率更新为 53/53 |
+| v0.1.3 | 2026-08-17 | PRE-BEVY-001 行的约束对象由固定枚举改为「除 pre-bevy 外的全部 workspace 成员」，与 01 号文档 v0.1.3 保持一致 |
 
 Requirement → Architecture Component → Design Section → Test → Acceptance Criterion
 
@@ -68,7 +69,7 @@ Requirement → Architecture Component → Design Section → Test → Acceptanc
 | PRE-SEC-002 | N/A（V0.1不涉及） | — | — | OQ-05 |
 | PRE-OBS-001 | pre-verify | §26 Observability | CandidateExplanation 结构测试 | AC-04 |
 | PRE-OBS-002 | pre-runtime全链路 | §26 | stage timing 记录测试 | — |
-| PRE-BEVY-001 | pre-bevy（唯一依赖方）, pre-core/pre-solver-*/pre-retrieval/pre-atlas/pre-verify/pre-refine（零依赖约束对象） | §4 Component Diagram, §33.1, ADR-009 | `cargo tree` 依赖树检查（CI 自动化） | AC-06 |
+| PRE-BEVY-001 | pre-bevy（唯一依赖方）, 除 pre-bevy 外的全部 workspace 成员（零依赖约束对象，清单以 §4 为准） | §4 Component Diagram, §33.1, §33.5, ADR-009 | `cargo tree` 依赖树检查，从 workspace 成员列表动态枚举（CI 自动化） | AC-06 |
 | PRE-BEVY-002 | pre-bevy | §33.2 回放设计 | Bevy 集成测试：加载 Experience 并断言实体 Transform 随时间变化 | AC-06 |
 | PRE-BEVY-003 | pre-bevy | §33.2（插值逻辑） | 插值函数单元测试（覆盖采样点间/边界/单点退化情形） | — |
 | PRE-BEVY-004 | pre-bevy, pre-retrieval, pre-verify | §33.3 异步查询桥接 | 异步查询集成测试：断言主线程/Schedule 不被阻塞 | — |
