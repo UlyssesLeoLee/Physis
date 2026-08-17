@@ -6,8 +6,8 @@
 |---|---|
 | 文书编号 | PRE-DOC-02 |
 | 文书名称 | Physical Retrieval Engine 基本设计书 |
-| 版本 | v0.1.3 |
-| 状态 | Draft — 基于 01号文档 v0.1.3 需求基线编制，尚未经承认 |
+| 版本 | v0.1.4 |
+| 状态 | Draft — 基于 01号文档 v0.1.4 需求基线编制，尚未经承认 |
 | 输入基线 | 01_PRE_Requirements.md（需求变更后须重新走查本文书是否受影响） |
 | 关联文书 | 03（ADR，决策理由）、04（追踪矩阵）、05（自审发现的 ISS 已回填至相应章节） |
 
@@ -19,6 +19,7 @@
 | v0.1.1 | 2026-08-17 | 补充文书管理表、承认栏；按自审结果（05号文档 ISS-006/009）在 §13/§26 补充参数不可辨识暴露机制与召回不足监控说明 | Claude |
 | v0.1.2 | 2026-08-17 | 响应 01号文档 v0.1.2 新增的 Bevy 集成需求（PRE-BEVY-001~006）：§4 追加 `pre-bevy` crate，新增 §33 Engine Integration Architecture | Claude |
 | v0.1.3 | 2026-08-17 | 交叉审查修正：§33.5 的 bevy 依赖检查范围由枚举 4 个 crate 改为「除 pre-bevy 外的全部 workspace 成员」，并要求检查脚本从成员列表动态枚举 | Claude |
+| v0.1.4 | 2026-08-17 | 响应 01号文档 v0.1.4：§4 追加 pre-engine-api/pre-godot/pre-ffi/pre-python/pre-gpu；§33 由 Bevy 专属重写为多宿主分层集成架构；新增 §34 GPU 后端架构、§35 可嵌入性架构 | Claude |
 
 ## 承认栏
 
@@ -102,10 +103,15 @@ pre-verify      # 重仿真 + 误差计算 + CandidateScore
 pre-refine      # optimizer 插件（local search / CMA-ES）
 pre-gen         # dataset generator + sampler
 pre-cli         # CLI/命令入口
-pre-bevy        # 可选 Bevy 引擎适配层（见 §33），依赖 bevy + pre-core，其余核心 crate 不依赖它
+pre-engine-api  # 宿主中立的集成契约：回放游标/插值、查询会话、中立变换类型、坐标单位换算（见 §33）
+pre-bevy        # Tier 1 适配层：Bevy（依赖 bevy + pre-engine-api）
+pre-godot       # Tier 1 适配层：Godot 4 GDExtension（依赖 godot + pre-engine-api）
+pre-ffi         # Tier 2 C ABI 边界（cdylib + 头文件），供 Unity/Unreal 等外语言宿主接入；MVP 仅设计不实现
+pre-python      # Tier 3 PyO3 绑定，供 Blender/Maya/Houdini 等 Python 宿主接入；MVP 仅设计不实现
+pre-gpu         # GPU 计算后端抽象（wgpu → Vulkan/D3D12/Metal），见 §34；MVP 不实现
 ```
 
-依赖方向单向：`pre-solver-*` 与 `pre-signature/pre-encoder/pre-retrieval` 互不依赖具体实现，仅通过 `pre-core` 的 trait 交互（对应 PRE-FR-003）。`pre-bevy` 是唯一允许依赖 `bevy` 的 crate，且只能被应用层（Bevy App）依赖，不得被 `pre-core` 之外的任何核心 crate 反向依赖（对应 PRE-BEVY-001, ADR-009）。
+依赖方向单向：`pre-solver-*` 与 `pre-signature/pre-encoder/pre-retrieval` 互不依赖具体实现，仅通过 `pre-core` 的 trait 交互（对应 PRE-FR-003）。各适配层 crate 是唯一允许依赖对应宿主 SDK（`bevy`/`godot`/`pyo3`）的位置，只能被宿主应用依赖，不得被任何核心 crate 反向依赖（对应 PRE-ENG-002, ADR-009/ADR-010）。适配层之间亦不得相互依赖——它们的共同逻辑一律下沉到 `pre-engine-api`。
 
 ## 5. Runtime Architecture
 
@@ -426,77 +432,154 @@ MVP：单机命令行工具/库，无服务化部署。CI 中跑单元测试 + �
 
 见 03_PRE_Architecture_ADR.md：ADR-001~ADR-006（含新增 ADR-007：Post-filter vs Pre-filter；ADR-008：图数据库暂缓引入；ADR-009：Bevy 是 Engine Adapter 而非核心依赖）。
 
-## 33. Engine Integration Architecture（Bevy Adapter）
+## 33. Host Integration Architecture（多宿主分层集成架构）
 
-### 33.1 定位与依赖方向
+### 33.1 分层模型与依赖方向
 
-`pre-bevy` 是本项目第一个 Engine Adapter，架构地位与 §15 的 `ObservationBackend` 同构：都是"核心之外的可插拔适配层"，区别在于数据流方向相反——`ObservationBackend` 是外部数据流入核心（Observation → PRE），`pre-bevy` 主方向是核心数据流出到外部引擎（PRE → Bevy 渲染），同时预留一个未来的反向通道（Bevy 场景 → PRE Experiment，PRE-BEVY-005，Phase 2）。
+PRE 是被宿主嵌入的运行时。宿主横跨 Rust / C++ / C# / Python 四种生态，无法用单一接入机制覆盖，故按**接入机制**分为四层（对应 PRE-ENG-001）：
 
 ```
-        pre-core (PhysicsExperience, StandardPhysicalResponse, ...)
-              ▲                                    │
-              │ (trait-only, 不依赖 bevy)              │ (回放数据只读消费)
-              │                                    ▼
-        pre-solver-* / pre-retrieval          pre-bevy (依赖 bevy + pre-core)
-        pre-verify / pre-atlas                      │
-                                                     ▼
-                                              Bevy App（渲染/输入/游戏逻辑）
+                    ┌──────────────── pre-core ────────────────┐
+                    │  PhysicsExperience / StandardPhysical-   │
+                    │  Response / Signature / Embedding …      │
+                    └──────────────────┬───────────────────────┘
+                                       │ (Rust 类型，无宿主依赖)
+                    ┌──────────────────▼───────────────────────┐
+                    │            pre-engine-api                │
+                    │  ★ 宿主中立的集成逻辑集中地：             │
+                    │    PlaybackCursor（采样点插值）           │
+                    │    QuerySession（异步查询状态机）         │
+                    │    LandmarkTransform（中立变换类型）      │
+                    │    SpatialConvention（坐标/单位换算）     │
+                    └───┬───────────┬──────────┬───────────┬────┘
+        Tier 1 (Rust)   │           │  Tier 2  │  Tier 3   │
+        ┌───────────────▼──┐  ┌─────▼─────┐  ┌─▼────────┐ │
+        │    pre-bevy      │  │ pre-godot │  │ pre-ffi  │ │  pre-python
+        │   (bevy crate)   │  │  (gdext)  │  │ (C ABI)  │ │   (PyO3)
+        └────────┬─────────┘  └─────┬─────┘  └─┬──────┬─┘ └────┬─────┘
+                 ▼                  ▼          ▼      ▼        ▼
+             Bevy App          Godot 项目   Unreal  Unity   Blender/Maya/
+                                            (C++)   (C#)    Houdini
 ```
 
-依赖方向单向：`pre-bevy` 依赖 `pre-core`（读取 `PhysicsExperience`/`StandardPhysicalResponse` 类型）与可选的 `pre-retrieval`/`pre-verify`（用于 PRE-BEVY-004 的异步查询桥接），但 `pre-core` 及其余核心 crate 对 `pre-bevy` 零感知、零依赖（PRE-BEVY-001, ADR-009）。
+依赖方向严格单向向上，且**适配层之间零依赖**：任何被两个以上适配层需要的逻辑，一律下沉到 `pre-engine-api`，而不是从一个适配层引用另一个。
 
-### 33.2 回放（Playback）设计
+### 33.2 `pre-engine-api`：中立契约（本次架构的核心）
+
+这一层的存在理由，是把「所有宿主都要做、且做法应当相同」的逻辑收敛到一处。归入本层的有四类：
+
+| 归入 `pre-engine-api` | 为何不能留在适配层 |
+|---|---|
+| **PlaybackCursor**：在 `sample_times` 中定位当前时刻并插值 | 四个宿主各写一遍插值，等于同一个边界 bug（早于首帧/晚于末帧/单采样点）有四份不一致的实现 |
+| **QuerySession**：提交请求→轮询结果的状态机 | 状态机语义（何时算完成、失败如何表达、能否取消）必须跨宿主一致，否则同一份文档无法描述所有宿主的行为 |
+| **LandmarkTransform**：中立变换类型 | 若直接用宿主类型，`pre-engine-api` 就得依赖宿主 SDK，违反 PRE-ENG-002 |
+| **SpatialConvention**：坐标手性/上轴/单位换算 | 见 §33.3，这是跨引擎最易出错且最难归因的一类缺陷 |
+
+留在各适配层的只有两类：**中立类型 ↔ 宿主类型的映射**，以及**宿主特有的调度接入**（Bevy 的 System/任务池、Godot 的 `_process`/线程、Python 的 GIL 处理）。
+
+### 33.3 规范空间与单位约定（PRE-ENG-006）
+
+PRE 规范约定：**右手系、Y 轴向上、-Z 为前方、长度单位 SI 米**。各宿主差异：
+
+| 宿主 | 手性 | 上轴 | 默认长度单位 | 换算复杂度 |
+|---|---|---|---|---|
+| PRE（规范） | 右手 | Y | 米 | — |
+| Bevy | 右手 | Y | 米 | 接近恒等 |
+| Godot | 右手 | Y | 米 | 接近恒等 |
+| Unity | **左手** | Y | 米 | 需手性翻转 |
+| Unreal | **左手** | **Z** | **厘米** | 需手性翻转 + 轴置换 + ×100 |
+| Blender | 右手 | **Z** | 米 | 需轴置换 |
+
+`SpatialConvention` 以数据（而非各适配层的散落代码）描述每个宿主的换算，每个适配层声明自己使用哪一个，换算函数集中实现并统一测试。
+
+> 这张表本身就是把 Unity/Unreal 纳入规划的直接收益：如果只做 Bevy 和 Godot（两者都接近恒等换算），换算层很可能被实现成隐式恒等，等到接入 Unreal 时才发现整个数据通路里没有可插入换算的位置。
+
+### 33.4 Tier 1 适配层（Bevy / Godot）
+
+两者都能直接链接 Rust 类型，差异只在宿主的对象模型与调度设施：
+
+- **`pre-bevy`（PRE-ENG-101）**：提供 Bevy `Plugin`；`PreLandmark` 组件标记受控实体；System 每帧从 `PlaybackCursor` 取中立变换写入 `Transform`；查询桥接使用 Bevy `AsyncComputeTaskPool` 驱动 `QuerySession`。
+- **`pre-godot`（PRE-ENG-201）**：经 Godot 4 GDExtension 的 Rust 绑定，提供 `Node3D` 派生的回放节点；子节点通过导出属性绑定 `LandmarkId`；`_process` 中仅做「取插值结果 → 写 `Transform3D`」，查询桥接放在独立线程并经 `call_deferred` 回主线程，**不得在 `_process` 中同步等待**。
+
+两者共用同一 `PlaybackCursor` 与 `QuerySession`，因此 AC-07 的一致性验收才有意义——若两者输出不一致，说明有本应中立的逻辑事实上泄漏进了某个适配层。
+
+### 33.5 Tier 2 C ABI 边界（`pre-ffi`，MVP 仅设计）
+
+Unity（C#）与 Unreal（C++）无法消费 Rust 类型，必须经稳定 C ABI。边界约束（PRE-ENG-009）：
+
+- 仅传递**不透明句柄**（`PreContext*`、`PrePlayback*`）与 **POD 结构体**（如 `PreTransform { float pos[3]; float rot[4]; }`）；不跨边界传递 Rust 泛型、trait 对象、带载荷枚举、`Result`、`String`、`Vec`。
+- 错误一律为整型错误码；字符串经「调用方提供缓冲区 + 长度」模式取回。
+- 所有权与释放责任在头文件中逐函数注明；每个 `create_*` 有配对的 `destroy_*`。
+- 提供 `pre_ffi_abi_version()`，宿主启动时校验。
+- **每个 `extern "C"` 函数以 `catch_unwind` 包裹**——panic 跨 FFI 边界是未定义行为（PRE-EMB-004）。
+
+MVP 不实现的理由：C ABI 一经发布即难以变更，在没有真实 Unity/Unreal 调用方反馈的情况下固化接口形态，风险高于收益（OQ-08 记录了实现时机的触发条件）。但**边界约束现在就必须写下来**，因为它反向约束了 `pre-engine-api` 的设计——中立契约里若出现无法用 POD 表达的类型，Tier 2 就永远接不上。
+
+### 33.6 Tier 3 Python 绑定（`pre-python`，MVP 仅设计）
+
+面向 Blender/Maya/Houdini。除与 Tier 2 相同的「不跨边界传递 Rust 专有类型」原则外，关键约束是 **GIL 释放**（PRE-ENG-010）：检索与仿真验证是长耗时操作，若持有 GIL 执行，会冻结宿主 3D 软件的整个 UI 线程。该 crate 同时服务于约束 C-01 已允许的 ML/研究工作流。
+
+### 33.7 一致性测试套件（PRE-ENG-008）
+
+所有适配层针对同一条黄金响应数据，经各自 `SpatialConvention` 换算后，产出的变换序列必须在容差内一致。新增适配层时必须通过同一套件，不得各自定义验收口径。套件实现归属 `pre-testkit`（见 11 号文档 §2 的双层测试策略——Tier 1 可在 mock 层跑，真实宿主集成仍需真实层兜底）。
+
+### 33.8 依赖隔离的自动化验证（AC-06）
+
+CI 以 `cargo metadata` **动态枚举** workspace 成员，排除各适配层 crate 自身后，检查其余成员的依赖树不包含任何宿主 SDK（`bevy`/`godot`/`pyo3`）。必须动态枚举而非硬编码名单——否则新增 crate 会自动逃逸出检查范围（这正是 v0.1.3 修复过的缺陷类型）。
+
+## 34. GPU Backend Architecture（GPU 计算后端）
+
+### 34.1 定位
+
+PRE 使用 GPU **仅用于计算**（solver 加速），不承担渲染。这一点决定了架构选择：需要的是 compute pipeline 的可移植抽象，而非完整渲染抽象。
+
+### 34.2 可移植抽象（PRE-GPU-001）
+
+```
+        pre-solver-*（solver 实现）
+                │  只调用 pre-gpu 的抽象接口
+                ▼
+            pre-gpu
+                │  wgpu（候选，OQ-09 待最终确认）
+                ▼
+    Vulkan │ Direct3D 12 │ Metal │ (GL 等回退)
+```
+
+solver 代码中不得出现任何单一图形 API 的专有调用。选 `wgpu` 的初步理由：Rust 原生、单一抽象即覆盖三大后端、且 Bevy 本身即基于 wgpu（利于 §34.3 的设备共享）。**但选型在 GPU 工作实际启动时才最终确认**（OQ-09），因为需要验证其抽象能否表达 MPM 的 P2G/G2P 所需的原子操作与工作组内存模式。
+
+### 34.3 宿主设备注入（PRE-GPU-002，本节最关键的架构决策）
 
 ```rust
-// pre-bevy 提供的 Bevy 组件与资源
-#[derive(Component)]
-struct PreLandmark { landmark_id: LandmarkId, experience_id: ExperienceId }
-
-#[derive(Resource)]
-struct PrePlaybackState {
-    response: StandardPhysicalResponse,   // 只读引用/克隆，来自已加载的 PhysicsExperience
-    playback_time: f64,                   // Bevy 侧维护的回放时钟，独立于 PRE 的仿真时钟
-    speed: f64,
-}
-
-fn pre_playback_system(
-    time: Res<Time>,
-    mut playback: ResMut<PrePlaybackState>,
-    mut query: Query<(&PreLandmark, &mut Transform)>,
-) {
-    playback.playback_time += time.delta_seconds_f64() * playback.speed;
-    for (landmark, mut transform) in &mut query {
-        let pos = interpolate_position(&playback.response, landmark.landmark_id, playback.playback_time); // 线性插值，PRE-BEVY-003
-        transform.translation = pos.into();
-    }
+enum GpuDeviceSource {
+    HostProvided { device: ..., queue: ... },   // 宿主已有设备，PRE 复用
+    CreateOwn { preferred_backend: Option<Backend> },  // 无宿主设备时自建
 }
 ```
 
-`interpolate_position()` 在 `response.sample_times` 中定位 `playback_time` 落在的区间，对相邻两个采样点的 `position` 做线性插值；采样点数不足（如仅 1 个）时退化为常量输出，不panic。
+宿主（游戏引擎、3D 软件）运行时几乎必然已持有 GPU 设备。若 PRE 另建一个：显存重复占用、跨设备同步开销、部分驱动下资源共享直接失败。
 
-### 33.3 异步查询桥接设计（PRE-BEVY-004）
+**为何这必须现在决定**：「PRE 自建并独占设备」与「PRE 接受注入设备」是两种不兼容的初始化架构。前者会把设备创建、生命周期、错误处理散布在初始化路径各处；改造为后者时，这些位置全部要重写。即使 MVP 不实现 GPU，初始化架构也必须预留设备注入形态——这与 PRE-EMB-001（无全局状态、显式上下文句柄）是同一类约束。
 
-检索/验证耗时可能达到秒级（仿真验证涉及重新仿真），不能在 Bevy 的同步 System 中直接调用。采用「请求资源 + 后台任务 + 轮询结果资源」模式：
+### 34.4 CPU 真值与回退（PRE-GPU-003 / PRE-GPU-005）
 
-```rust
-#[derive(Resource, Default)]
-struct PreQueryRequests(Vec<PendingQuery>);   // Bevy 侧写入，pre-bevy 后台任务消费
+- CPU reference 始终是数值真值来源，GPU 实现必须与之在容差内对齐并有自动化回归——这是 PRE-PHY-002 在 GPU 语境的延伸，不是新原则。
+- 无 GPU 或初始化失败时自动回退 CPU 并记录原因，不得直接失败退出：PRE 的核心价值（检索与验证）在纯 CPU 下必须完整可用。
 
-#[derive(Resource, Default)]
-struct PreQueryResults(HashMap<QueryId, CandidateExplanation>);  // 后台任务写入，Bevy 侧系统读取
+### 34.5 零拷贝互操作（PRE-GPU-004，设计预留）
 
-// 后台任务（Bevy 的 AsyncComputeTaskPool 或独立 std::thread + channel，二选一，实现阶段确定）
-// 调用 pre-retrieval::search() + pre-verify::verify()，完成后写入 PreQueryResults
-```
+理想路径是 PRE 的计算结果以宿主可直接使用的 GPU 缓冲交付，免去 GPU→CPU→GPU 往返。这依赖外部内存共享（Vulkan external memory、D3D12 shared handle 等），复杂度与宿主耦合度都远高于普通计算后端，且各宿主可达性不同（OQ-10）。
 
-该模式保证 Bevy 主 Schedule 每帧只做资源读写（O(1)~O(n) 的 HashMap 操作），耗时的检索/验证逻辑完全在后台线程执行，不阻塞渲染帧率（PRE-BEVY-004）。
+架构上的要求仅有一条，但必须现在遵守：**数据通路设计不得假设结果必然经过 CPU**。若把「结果落到 CPU 内存」写死进 `StandardPhysicalResponse` 的产出路径，未来零拷贝将无处插入。
 
-### 33.4 版本兼容策略
+## 35. Embeddability Architecture（可嵌入性）
 
-`pre-bevy` 的 `Cargo.toml` 对 `bevy` 依赖使用精确的单一主版本号（如 `bevy = "0.X"` 而非宽泛的 range），并在 crate 文档首行声明支持的 Bevy 版本；Bevy 发布新主版本时，`pre-bevy` 发布对应的新主版本（不追求同一 `pre-bevy` 版本跨多个 Bevy 主版本兼容）。理由与决策记录见 03号文档 ADR-009 与 01号文档 OQ-07。
+PRE 作为被宿主嵌入的库，以下四条约束几乎全部属于「早期不遵守、后期无法补救」：
 
-### 33.5 MVP 范围内的验收方式
+| 约束 | 架构落实 | 若违反的后果 |
+|---|---|---|
+| PRE-EMB-001 无全局可变状态 | 所有运行时状态挂在显式 `PreContext` 句柄下，允许同进程多实例 | 3D 软件中插件被多次实例化时相互踩踏；测试无法并行 |
+| PRE-EMB-002 不拥有主循环 | 长耗时操作一律提供「分步执行」或「后台执行 + 轮询」形式（与 §33.2 的 `QuerySession` 同一机制） | 宿主主线程被阻塞，UI/渲染卡死 |
+| PRE-EMB-003 线程策略可配置 | 线程数上限可配置，或直接复用宿主线程池 | 在对调度有严格约束的 DCC 宿主中造成线程爆炸 |
+| PRE-EMB-004 panic 不跨外语言边界 | 所有 `extern "C"` 与 PyO3 入口以 `catch_unwind` 包裹并转换为该语言错误 | 跨边界 unwind 是未定义行为，表现为宿主进程崩溃且难以定位 |
 
-对应 01号文档 AC-06：提供一个最小 Bevy 示例应用（`examples/pre-bevy-playback` 或等价位置，具体路径留实现阶段确定），加载一条已生成的 `PhysicsExperience`，回放为实体动画；CI 中以 `cargo tree` 或等价工具**遍历除 `pre-bevy` 外的全部 workspace 成员**，检查其依赖树均不包含 `bevy`，作为 PRE-BEVY-001 的自动化验证手段（而非仅靠人工代码评审）。检查脚本必须从 workspace 成员列表动态枚举，而非硬编码 crate 名单——否则新增 crate 时会自动逃逸出检查范围（与 PRE-BEVY-001 采用「全部成员」而非固定枚举的理由相同）。
-
-对应需求：PRE-BEVY-001~006。
+这些约束对 Tier 0（纯 Rust 调用）看似多余，但正是它们使得 Tier 1~3 得以在不改动核心的前提下叠加——它们约束的是核心，不是适配层。

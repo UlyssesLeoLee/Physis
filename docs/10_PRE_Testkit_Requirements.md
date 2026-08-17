@@ -6,17 +6,18 @@
 |---|---|
 | 文书编号 | PRE-DOC-10 |
 | 文书名称 | PRE Testkit 需求定义书 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
-| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.1）、09_PRE_Test_Case_List.md（v0.1.1） |
+| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.3）、09_PRE_Test_Case_List.md（v0.1.4） |
 | 关联文书 | 11（Testkit 基本设计书）、12（Testkit 详细设计书）、09（测试用例一览，标注哪些 TC 依赖本项目） |
-| 定位说明 | `pre-testkit` 是 PRE 的**卫星子项目**（satellite sub-project）：只服务于自动化测试，不是 PRE 运行时的一部分，不对外发布为生产依赖。其需求 ID 使用独立前缀 `PRE-TK-*`，**不**并入 01_PRE_Requirements.md 的 53 条核心需求与 04_PRE_Traceability_Matrix.md 的追溯矩阵——理由见第4节系统边界。 |
+| 定位说明 | `pre-testkit` 是 PRE 的**卫星子项目**（satellite sub-project）：只服务于自动化测试，不是 PRE 运行时的一部分，不对外发布为生产依赖。其需求 ID 使用独立前缀 `PRE-TK-*`，**不**并入 01_PRE_Requirements.md 的核心需求体系与 04_PRE_Traceability_Matrix.md 的追溯矩阵——理由见第4节系统边界。 |
 
 ## 改订履历
 
 | 版本 | 日期 | 变更内容 | 作成者 |
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：PRE-TK-001~010，MVP 范围、验收标准 | Claude |
+| v0.1.1 | 2026-08-17 | 随多宿主重构更新：新增 PRE-TK-011（跨适配层一致性套件执行框架）；Mock Bevy Harness 泛化为 Mock Host Harness；旧 PRE-BEVY-* 引用更新 | Claude |
 
 ## 承认栏
 
@@ -28,7 +29,7 @@
 
 ## 1. 项目背景
 
-09_PRE_Test_Case_List.md 定义了约 60 条测试用例（TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/BEVY/E2E），其中相当一部分若直接对着真实组件写测试，会引入以下问题：
+09_PRE_Test_Case_List.md 定义了 77 条测试用例（TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/ENG/BEVY/GODOT/CONF/GPU/EMB/E2E），其中相当一部分若直接对着真实组件写测试，会引入以下问题：
 
 - **速度**：真实 MPM/XPBD solver 的一次仿真可能耗时数秒~数十秒（对应 PRE-PERF-001 的 MVP 基准），若每个单元测试都跑一次真实仿真，测试套件运行时间会随用例数线性增长到不可接受的程度。
 - **确定性边界外的噪声**：真实 SQLite/HNSW 索引读写涉及文件系统状态，并行测试之间若不严格隔离临时目录，容易产生难以复现的测试间污染。
@@ -43,7 +44,7 @@
 - G2：提供可编程控制的 Mock SolverPlugin，能够精确构造"数值发散""仿真失败""特定形变模式"等边界情形，覆盖真实 solver 难以稳定复现的测试场景。
 - G3：提供固定的"黄金数据集"（golden dataset），作为 `extract_signature()`/`encode_v1()` 等确定性函数的回归基线。
 - G4：提供 Fixture Builder，降低测试代码中构造 `PhysicsExperience`/`StandardPhysicalResponse` 等深层嵌套结构体的样板代码量。
-- G5：提供 Mock Bevy Harness，使 TC-BEVY-* 系列用例可以在无真实窗口/渲染后端的 headless 环境下于 CI 中运行。
+- G5：提供 Mock Host Harness（首个实现为 Bevy），使 TC-BEVY-*/TC-GODOT-*/TC-CONF-* 系列用例可以在无真实窗口/渲染后端的 headless 环境下于 CI 中运行。
 
 ## 3. 非目标
 
@@ -54,9 +55,9 @@
 
 ## 4. 系统边界（含 ID 命名空间独立的理由）
 
-`pre-testkit` 是纯粹的开发期工具，不出现在任何生产二进制的依赖树中——这一点与 `pre-bevy`（生产环境可选依赖，见 01号文档 §29）有本质区别：`pre-bevy` 服务的是"PRE 的使用者"，`pre-testkit` 服务的是"PRE 的开发者"。因此：
+`pre-testkit` 是纯粹的开发期工具，不出现在任何生产二进制的依赖树中——这一点与各宿主适配层（`pre-bevy`/`pre-godot` 等，生产环境可选依赖，见 01号文档 §29）有本质区别：适配层服务的是"PRE 的使用者"，`pre-testkit` 服务的是"PRE 的开发者"。因此：
 
-- `PRE-TK-*` 需求不计入 01 号文档的 53 条核心需求，也不出现在 04 号文档的追溯矩阵中——追溯矩阵的目的是"证明核心产品需求被设计与测试覆盖"，而 `pre-testkit` 本身是测试基础设施，不是被追溯的对象，把它混入核心矩阵会稀释矩阵的信噪比。
+- `PRE-TK-*` 需求不计入 01 号文档的核心需求体系，也不出现在 04 号文档的追溯矩阵中——追溯矩阵的目的是"证明核心产品需求被设计与测试覆盖"，而 `pre-testkit` 本身是测试基础设施，不是被追溯的对象，把它混入核心矩阵会稀释矩阵的信噪比。
 - `pre-testkit` 的需求-设计追溯改为在本文书与 11/12 号文档内部自洽维护（见 12 号文档末尾的内部映射表），并在 09 号文档中以标注形式说明哪些 TC 依赖它（见 09 号文档改订记录）。
 
 ## 5. Functional Requirements
@@ -67,24 +68,25 @@
 - **PRE-TK-004**：必须提供 `PhysicsExperience`/`StandardPhysicalResponse`/`PhysicalSignature`/`EmbeddingSet`（08号文档 §2）的 Fixture Builder，采用 Builder 模式，所有字段有合理默认值，测试代码只需覆盖关心的字段。
 - **PRE-TK-005**：必须提供一个固定的 Golden Dataset：不少于 10 条预先生成并检查入库的 `PhysicsExperience`（含其 `PhysicalSignature`/`EmbeddingSet`），覆盖 Rigid/XPBD/MPM 三类 solver 各至少 2 条，用作 `extract_signature()`/`encode_v1()` 的确定性回归基线（对应 TC-SIG-005 的精神，但用固定数据集而非临时生成，使得任何实现变更导致的结果漂移能被 diff 直接看到）。
 - **PRE-TK-006**：必须提供近似相等断言辅助函数/宏（如 `assert_approx_eq!(a, b, epsilon)`、`assert_vec3_approx_eq!`），统一测试代码中的浮点数值比较容差，避免各测试用例各自发明不一致的比较逻辑。
-- **PRE-TK-007**：必须提供 `MockBevyHarness`，封装 `bevy::app::App`，提供 `advance_frames(n, dt)` 方法以虚拟时钟推进指定帧数而不依赖真实 wall-clock sleep，使 TC-BEVY-006~009 可在 headless CI 环境下确定性运行。
+- **PRE-TK-007**：必须提供 Mock Host Harness（首个实现 `MockBevyHarness` 封装 `bevy::app::App`），提供 `advance_frames(n, dt)` 以虚拟时钟推进指定帧数而不依赖真实 wall-clock sleep，使 TC-BEVY-*/TC-GODOT-* 可在 headless CI 环境下确定性运行。
+- **PRE-TK-011**：必须提供跨适配层一致性套件（PRE-ENG-008）的执行框架：以 Golden Dataset 为输入、以 `pre-engine-api::conformance_reference()` 为参考值，且必须包含非恒等换算用例（`SpatialConvention::UNREAL`），详见 11号文档 §3.6。
 - **PRE-TK-008**：Golden Dataset 与其它 fixture 数据必须携带其对应的 `schema_version`/`encoder_version`（08号文档 §2.3, §8.3）；当核心 schema 版本升级时，`pre-testkit` 的 CI 检查必须能够检测到"fixture 版本落后于当前 schema 版本"并使相关测试显式失败（而不是让过期 fixture 静默通过测试）。
 
 ## 6. Non-Functional Requirements
 
 - **PRE-TK-009**（推奨）：Golden Dataset 的生成过程必须是可复现的——即存在一个固定种子的生成脚本，任何人可从零重新生成并得到逐字节相同的数据集；这保证黄金数据集不是"手工编造的魔法数字"，而是可审计、可重新生成的。
-- **PRE-TK-010**（推奨）：`pre-testkit` 引入的编译时间增量应保持在可接受范围内（不引入额外的重量级依赖，如不为了 Mock 而引入完整的 mocking 框架宏系统，优先用手写的简单实现）——理由与 ADR-009 对 `pre-bevy` 依赖面控制的精神一致：测试基础设施本身也应避免成为拖慢开发迭代的负担。
+- **PRE-TK-010**（推奨）：`pre-testkit` 引入的编译时间增量应保持在可接受范围内（不引入额外的重量级依赖，如不为了 Mock 而引入完整的 mocking 框架宏系统，优先用手写的简单实现）——理由与 ADR-009/ADR-010 对适配层依赖面控制的精神一致：测试基础设施本身也应避免成为拖慢开发迭代的负担。
 
 ## 7. MVP 范围
 
-第一版 `pre-testkit` 覆盖 PRE-TK-001~008（功能需求全部），PRE-TK-009/010（非功能）作为工程纪律要求同步落实，不单独分期。不纳入 MVP：为 FEM stub / Phase 2 的 Bevy 场景导入方向（PRE-BEVY-005）预先构造 fixture——待这些能力本身进入实现阶段时再扩展 testkit。
+第一版 `pre-testkit` 覆盖 PRE-TK-001~008 与 PRE-TK-011（功能需求全部），PRE-TK-009/010（非功能）作为工程纪律要求同步落实，不单独分期。不纳入 MVP：为 FEM stub / Phase 2 的宿主场景导入方向（PRE-ENG-011）预先构造 fixture——待这些能力本身进入实现阶段时再扩展 testkit。
 
 ## 8. Acceptance Criteria
 
 - **AC-TK-01**：09 号文档中标注"使用 pre-testkit"的全部用例，在 CI 中单次运行总耗时（不含编译）应控制在数秒级，且可在无网络、无真实文件系统持久化状态的容器环境中稳定通过。
 - **AC-TK-02**：`MockSolverPlugin` 能够精确复现 TC-SOLVER-005（数值发散于指定步）与 TC-VER-006（仿真失败）两个此前依赖真实 solver 难以稳定构造的边界用例。
 - **AC-TK-03**：Golden Dataset 的重新生成脚本执行两次，产出的数据文件逐字节相同（验证 PRE-TK-009 的可复现性要求）。
-- **AC-TK-04**：`cargo build --release`（仅构建生产 target，不构建测试）产出物的依赖树中不包含 `pre-testkit`（验证 PRE-TK-001 的边界约束，方法与 AC-06 验证 PRE-BEVY-001 的 `cargo tree` 检查同构）。
+- **AC-TK-04**：`cargo build --release`（仅构建生产 target，不构建测试）产出物的依赖树中不包含 `pre-testkit`（验证 PRE-TK-001 的边界约束，方法与 AC-06 验证 PRE-ENG-002 的 `cargo tree` 检查同构）。
 
 ## 9. Risks（简要，完整登记见 12 号文档内部风险说明）
 

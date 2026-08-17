@@ -6,11 +6,11 @@
 |---|---|
 | 文书编号 | PRE-DOC-08 |
 | 文书名称 | Physical Retrieval Engine 详细设计书 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.3 |
 | 状态 | Draft |
-| 输入基线 | 02_PRE_Basic_Design.md（v0.1.3）、03_PRE_Architecture_ADR.md（v0.1.2） |
+| 输入基线 | 02_PRE_Basic_Design.md（v0.1.4）、03_PRE_Architecture_ADR.md（v0.1.3） |
 | 关联文书 | 04（追踪矩阵，本文书新增内容追加映射见文末）、09（测试用例一览） |
-| 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30；以及 §33 定义的 Bevy 回放能力）；FEM 与 Bevy 场景导入方向（PRE-BEVY-005）仍为 stub/Phase 2，不在本文书详细展开 |
+| 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30；以及 §33 定义的 Bevy 回放能力）；FEM 与宿主场景导入方向（PRE-ENG-011）仍为 stub/Phase 2，不在本文书详细展开 |
 
 ## 改订履历
 
@@ -19,6 +19,7 @@
 | v0.1 | 2026-08-17 | 初版：crate 内部设计、数据结构、trait 签名、核心算法、错误模型、存储 schema | Claude |
 | v0.1.1 | 2026-08-17 | 新增 §18 `pre-bevy` 详细设计，响应 02号文档 v0.1.2 新增的 §33 Engine Integration Architecture | Claude |
 | v0.1.2 | 2026-08-17 | §18 前提约束表述由「核心六个 crate」改为「除 pre-bevy 外的全部 workspace 成员」，与 PRE-BEVY-001 v0.1.3 定义一致 | Claude |
+| v0.1.3 | 2026-08-17 | 原 §18（pre-bevy）拆分重写为 §18 中立契约 / §19 Bevy / §20 Godot / §21 Tier2·3 边界 / §22 GPU 后端，响应 02号文档 v0.1.4 的多宿主分层架构 | Claude |
 
 ## 承认栏
 
@@ -49,7 +50,11 @@
 15. エラーコード一覧（错误码一览）
 16. 处理流程时序（主要 3 条路径的逐步时序）
 17. 与 02/04 号文档的追加映射
-18. `pre-bevy`：Bevy 引擎适配层详细设计
+18. `pre-engine-api`：宿主中立契约详细设计
+19. `pre-bevy`：Tier 1 适配层（Bevy）详细设计
+20. `pre-godot`：Tier 1 适配层（Godot）详细设计
+21. Tier 2 / Tier 3 边界详细设计（MVP 仅设计）
+22. `pre-gpu`：GPU 计算后端详细设计（MVP 不实现）
 
 ---
 
@@ -761,127 +766,258 @@ pre-cli gen --experiment-def <path> --n-samples <n> --strategy lhs
 | Dataset 失败点记录 | §13.2 | 02号 §20 | PRE-REL-001, PRE-FR-014 |
 | Encoder 版本与归一化统计量绑定 | §8.3 | 02号 §23 | PRE-ML-003, PRE-REPRO-002 |
 | SQLite/HNSW/Blob 具体 schema | §9 | 02号 §17, §18 | PRE-DATA-001~003 |
-| pre-bevy 回放/异步桥接/版本策略 | §18 | 02号 §33（v0.1.2 新增） | PRE-BEVY-001~006 |
+| 宿主中立契约（插值/查询会话/坐标换算） | §18 | 02号 §33.2, §33.3 | PRE-ENG-003~006, PRE-ENG-008 |
+| Tier 1 适配层（Bevy / Godot） | §19, §20 | 02号 §33.4 | PRE-ENG-101, PRE-ENG-201 |
+| Tier 2/3 边界（C ABI / PyO3） | §21 | 02号 §33.5, §33.6 | PRE-ENG-009, PRE-ENG-010, PRE-EMB-004 |
+| GPU 设备注入与后端抽象 | §22 | 02号 §34 | PRE-GPU-001~005 |
 
-> 说明：本次修订时 04 号文档的 47 条既有需求未重写"Design Section"列（避免大范围改动已合并内容），仅追加了 PRE-BEVY-001~006 六行新记录（见 04号文档 v0.1.2），本表作为既有 47 条需求与本文书之间的补充索引；上表末行的 pre-bevy 相关条目已直接体现在 04 号文档新增行中，不存在缺口。
+> 说明：既有的 47 条核心需求在 04 号文档中未重写 "Design Section" 列（避免大范围改动），本表作为它们与本文书之间的补充索引；宿主集成与 GPU 相关的 PRE-ENG-*/PRE-GPU-*/PRE-EMB-* 已在 04 号文档 v0.1.4 中作为独立行直接登记，不依赖本表，故不存在缺口。
 
 ---
 
-## 18. `pre-bevy`：Bevy 引擎适配层详细设计
+## 18. `pre-engine-api`：宿主中立契约详细设计
 
-本节是 02号文档 §33 的下一层，给出 `pre-bevy` 的具体类型定义、系统调度顺序与数值算法。前提约束（不重复展开，见 02号文档 §33.1 与 ADR-009）：`pre-bevy` 单向依赖 `pre-core`，除 `pre-bevy` 外的全部 workspace 成员对 `bevy` 零依赖（范围定义见 PRE-BEVY-001）。
+本节是 02号文档 §33.2 的下一层。本 crate 承载全部宿主共用逻辑，**不依赖任何宿主 SDK**（PRE-ENG-002）。
 
-### 18.1 Cargo 依赖与 feature 设计
+### 18.1 中立类型
 
-```toml
-# pre-bevy/Cargo.toml（示意）
-[dependencies]
-pre-core = { path = "../pre-core" }
-pre-retrieval = { path = "../pre-retrieval", optional = true }   # 仅 PRE-BEVY-004 需要
-pre-verify = { path = "../pre-verify", optional = true }
-bevy = { version = "0.X", default-features = false, features = ["bevy_render", "bevy_transform"] }
+```rust
+/// 中立变换：不使用任何宿主的数学库类型
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LandmarkTransform {
+    position: [f64; 3],
+    rotation: Option<[f64; 4]>,   // 四元数 (x,y,z,w)；仅刚体等有朝向的 landmark 提供
+}
 
-[features]
-default = ["playback"]
-playback = []                          # PRE-BEVY-002/003
-query_bridge = ["pre-retrieval", "pre-verify"]   # PRE-BEVY-004，可选启用
+/// 空间约定：以数据描述换算，而非散落在各适配层的代码（PRE-ENG-006, ADR-011）
+#[derive(Clone, Copy, Debug)]
+struct SpatialConvention {
+    handedness: Handedness,      // RightHanded | LeftHanded
+    up_axis: Axis,               // Y | Z
+    forward_axis: Axis,
+    length_scale: f64,           // PRE 米 → 宿主单位的乘数（Unreal 为 100.0）
+}
+
+impl SpatialConvention {
+    const PRE_CANONICAL: Self = /* 右手系, Y-up, -Z 前向, scale 1.0 */;
+    const BEVY: Self  = /* 右手, Y-up, scale 1.0 */;
+    const GODOT: Self = /* 右手, Y-up, scale 1.0 */;
+    const UNITY: Self = /* 左手, Y-up, scale 1.0 */;
+    const UNREAL: Self = /* 左手, Z-up, scale 100.0 */;
+    const BLENDER: Self = /* 右手, Z-up, scale 1.0 */;
+
+    fn convert(&self, t: LandmarkTransform) -> LandmarkTransform { /* 手性翻转 + 轴置换 + 缩放 */ }
+}
 ```
 
-`playback` 与 `query_bridge` 拆为独立 feature：仅需要回放能力的下游用户不必编译进 `pre-retrieval`/`pre-verify`，减少不必要的编译依赖面（呼应 ADR-009 的"最小依赖侵入"精神，在 `pre-bevy` 内部也贯彻同一原则）。
+**注意**：`LandmarkTransform` 刻意使用 `[f64; 3]` 而非任何 `Vec3` 类型——这是 PRE-ENG-009 的 C ABI 约束**反向作用于中立契约设计**的直接体现（02号文档 §33.5）：POD 数组可以直接跨 C ABI 传递，而带方法的数学类型不行。若此处图方便用了 `glam::Vec3`，Tier 2 将来就得再做一层拆包。
 
-### 18.2 组件/资源类型完整定义
+### 18.2 PlaybackCursor（回放游标，PRE-ENG-004）
+
+```rust
+struct PlaybackCursor<'a> {
+    response: &'a StandardPhysicalResponse,
+    convention: SpatialConvention,
+}
+
+impl<'a> PlaybackCursor<'a> {
+    fn sample(&self, landmark: LandmarkId, t: f64) -> Result<LandmarkTransform, PlaybackError> {
+        let idx = self.response.landmarks.iter().position(|&l| l == landmark)
+            .ok_or(PlaybackError::UnknownLandmark(landmark))?;
+        let times = &self.response.sample_times;
+        let raw = match bracket(times, t) {
+            Bracket::Empty        => return Err(PlaybackError::EmptyResponse),
+            Bracket::SinglePoint  => self.response.position[idx][0],
+            Bracket::Before       => self.response.position[idx][0],                   // 钳制首帧，不外推
+            Bracket::After        => *self.response.position[idx].last().unwrap(),     // 钳制末帧，不外推
+            Bracket::Between(i,j) => {
+                let alpha = (t - times[i]) / (times[j] - times[i]);
+                lerp(self.response.position[idx][i], self.response.position[idx][j], alpha)
+            }
+        };
+        Ok(self.convention.convert(LandmarkTransform { position: raw, rotation: None }))
+    }
+}
+```
+
+五种区间情形（空/单点/早于/晚于/区间内）全部显式处理且不 panic。**这段代码是本次分层重构的核心收益**：它此前位于 `pre-bevy` 内部，若 Godot/Unity/Unreal 各写一遍，这五个分支几乎必然被处理得不一致，且单宿主测试无法发现（02号文档 §33.2、ADR-010 理由 2）。
+
+与旧版（v0.1.1 §18.3）的行为差异：旧版对未知 landmark 用 `expect` panic，此处改为返回 `Result`。原因是 Tier 2/3 存在时 panic 不得跨越语言边界（PRE-EMB-004），而契约层无法预知调用方来自哪个 Tier，故一律返回可恢复错误，由各适配层决定如何呈现。
+
+### 18.3 QuerySession（异步查询会话，PRE-ENG-005）
+
+```rust
+enum QueryState { Pending, Running, Done(CandidateExplanation), Failed(QueryError) }
+
+struct QuerySession { id: QueryId, state: Arc<Mutex<QueryState>> }
+
+impl QuerySession {
+    fn submit(request: QueryRequest, executor: &dyn QueryExecutor) -> Self;
+    fn poll(&self) -> QueryState;      // 非阻塞，宿主每帧调用
+    fn cancel(&self);
+}
+
+/// 由各适配层用宿主原生设施实现（Bevy 任务池 / Godot 线程 / Python 线程）
+trait QueryExecutor: Send + Sync {
+    fn spawn(&self, work: Box<dyn FnOnce() -> Result<CandidateExplanation, QueryError> + Send>);
+}
+```
+
+状态机语义（何时算完成、失败如何表达、能否取消）集中定义于此，适配层只提供 `QueryExecutor` 实现。这保证同一份行为文档对所有宿主成立。
+
+### 18.4 一致性测试套件的契约面（PRE-ENG-008）
+
+```rust
+/// 供 pre-testkit 调用：给定黄金响应与目标约定，产出参考变换序列
+fn conformance_reference(response: &StandardPhysicalResponse,
+                          convention: SpatialConvention,
+                          sample_times: &[f64]) -> Vec<(LandmarkId, LandmarkTransform)>;
+```
+
+各适配层的集成测试须证明其输出与本函数在容差内一致。套件必须包含至少一个**非恒等换算**用例（用 `SpatialConvention::UNREAL` 构造，无需真实 Unreal 环境）——否则只测 Bevy/Godot（换算近似恒等）无法证明换算路径真正通畅（ADR-011 后果条）。
+
+## 19. `pre-bevy`：Tier 1 适配层（Bevy）详细设计
+
+依赖 `pre-engine-api` + `bevy`。相较 v0.1.1 版本，插值与查询状态机已上移，本 crate 只剩类型映射与调度接入。
 
 ```rust
 #[derive(Component, Clone, Copy)]
-struct PreLandmark {
-    landmark_id: LandmarkId,
-    experience_id: ExperienceId,
-}
+struct PreLandmark { landmark_id: LandmarkId }
 
 #[derive(Resource)]
-struct PrePlaybackState {
-    response: StandardPhysicalResponse,
-    playback_time: f64,
-    speed: f64,
-    looping: bool,
-}
+struct PrePlayback { response: StandardPhysicalResponse, time: f64, speed: f64, looping: bool }
 
-#[derive(Event)]
-struct PrePlaybackFinished { experience_id: ExperienceId }   // 非循环模式播放结束时触发，供 Bevy 应用响应
-```
-
-### 18.3 插值算法细节
-
-```rust
-fn interpolate_position(response: &StandardPhysicalResponse, landmark: LandmarkId, t: f64) -> Vec3 {
-    let idx = response.landmarks.iter().position(|&l| l == landmark)
-        .expect("landmark not present in this response");   // 契约：landmark 必须来自同一 response，调用方保证
-    let times = &response.sample_times;
-    match binary_search_bracket(times, t) {
-        Bracket::Before => response.position[idx][0],                          // t 早于首个采样点：钳制到首帧
-        Bracket::After  => *response.position[idx].last().unwrap(),            // t 晚于末个采样点：钳制到末帧
-        Bracket::Between(i, j) => {
-            let alpha = (t - times[i]) / (times[j] - times[i]);
-            response.position[idx][i].lerp(response.position[idx][j], alpha as f32)
+fn playback_system(time: Res<Time>, mut pb: ResMut<PrePlayback>,
+                   mut q: Query<(&PreLandmark, &mut Transform)>) {
+    pb.time += time.delta_secs_f64() * pb.speed;
+    let cursor = PlaybackCursor::new(&pb.response, SpatialConvention::BEVY);
+    for (lm, mut tf) in &mut q {
+        if let Ok(t) = cursor.sample(lm.landmark_id, pb.time) {
+            tf.translation = Vec3::new(t.position[0] as f32, t.position[1] as f32, t.position[2] as f32);
         }
-        Bracket::SinglePoint => response.position[idx][0],                     // 仅 1 个采样点：退化为常量（PRE-BEVY-003 边界情形）
     }
 }
+
+/// QueryExecutor 的 Bevy 实现：复用宿主任务池，不自建线程（PRE-EMB-003）
+struct BevyQueryExecutor(AsyncComputeTaskPool);
 ```
 
-`binary_search_bracket` 对 `sample_times`（假定非降序，若非等间隔仍适用）做二分查找，返回 `t` 所在区间；三种边界情形（早于/晚于/单点）均不 panic，符合 §15 错误处理原则（对用户输入之外的内部不变量用 `expect` 是可接受的，因为 `landmark` 集合由 `pre-bevy` 自身在生成 `PreLandmark` 组件时保证与 `response.landmarks` 一致，属契约违反而非可恢复错误）。
+System 调度顺序与 Feature 划分沿用 v0.1.1 的设计（`.chain()` 保证同帧内状态一致；`playback` / `query_bridge` 拆分 feature），此处不重复。
 
-### 18.4 System 调度顺序
+## 20. `pre-godot`：Tier 1 适配层（Godot）详细设计
 
-```rust
-impl Plugin for PrePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<PreQueryRequests>()
-           .init_resource::<PreQueryResults>()
-           .add_event::<PrePlaybackFinished>()
-           .add_systems(Update, (
-               pre_playback_system,              // §18.3 插值 + Transform 更新
-               pre_playback_finished_detector,   // 检测非循环播放到达末帧，发出事件
-               pre_query_dispatch_system,        // 消费 PreQueryRequests，派发后台任务（feature = query_bridge）
-               pre_query_poll_system,            // 轮询后台任务完成情况，写入 PreQueryResults
-           ).chain());   // 顺序执行：先更新回放状态，再处理事件，再处理查询——避免同帧内状态竞争
-    }
-}
-```
-
-四个系统在同一 `Update` stage 内以 `.chain()` 强制顺序执行，避免 `pre_playback_finished_detector` 读到本帧尚未更新的 `playback_time`（保证系统间数据依赖的确定性，属于 Bevy ECS 调度层面的实现细节，不属于架构决策，故不产生新 ADR）。
-
-### 18.5 异步查询后台任务实现要点
+依赖 `pre-engine-api` + Godot 4 GDExtension 的 Rust 绑定。与 Bevy 的差异全部来自宿主对象模型与调度设施，中立逻辑完全共用。
 
 ```rust
-fn pre_query_dispatch_system(mut requests: ResMut<PreQueryRequests>, task_pool: Res<AsyncComputeTaskPool>,
-                              mut pending: Local<Vec<(QueryId, Task<CandidateExplanation>)>>) {
-    for req in requests.0.drain(..) {
-        let task = task_pool.spawn(async move {
-            let candidates = pre_retrieval::search(&req.query_signature, req.encoder_version, req.top_n, req.filter);
-            pre_verify::verify_best(&candidates, &req.observed_heldout)
-        });
-        pending.push((req.id, task));
-    }
+#[derive(GodotClass)]
+#[class(base=Node3D)]
+struct PrePlaybackNode {
+    base: Base<Node3D>,
+    #[export] speed: f64,
+    #[export] looping: bool,
+    response: Option<StandardPhysicalResponse>,
+    time: f64,
+    bindings: Vec<(LandmarkId, Gd<Node3D>)>,   // landmark → 子节点
 }
 
-fn pre_query_poll_system(mut pending: Local<Vec<(QueryId, Task<CandidateExplanation>)>>,
-                          mut results: ResMut<PreQueryResults>) {
-    pending.retain_mut(|(id, task)| {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
-            results.0.insert(*id, result);
-            false   // 完成，移出待处理列表
-        } else {
-            true    // 未完成，保留
+#[godot_api]
+impl INode3D for PrePlaybackNode {
+    fn process(&mut self, delta: f64) {
+        self.time += delta * self.speed;
+        let Some(resp) = &self.response else { return };
+        let cursor = PlaybackCursor::new(resp, SpatialConvention::GODOT);
+        for (lm, node) in &mut self.bindings {
+            if let Ok(t) = cursor.sample(*lm, self.time) {
+                let mut tf = node.get_transform();
+                tf.origin = Vector3::new(t.position[0] as f32, t.position[1] as f32, t.position[2] as f32);
+                node.set_transform(tf);
+            }
         }
-    });
+    }
 }
 ```
 
-使用 Bevy 自带的 `AsyncComputeTaskPool`（而非独立 `std::thread`），复用 Bevy 的任务调度基础设施，避免 `pre-bevy` 自行管理线程池——这是本节相对 02号文档 §33.3 的进一步细化：02 号文档只说明"后台任务 + 轮询"模式，未指定具体机制；本节明确选用 Bevy 原生任务池，理由是与宿主应用共享同一调度资源，避免线程数失控。
+Godot 特有的两点约束：
 
-### 18.6 单元测试要点（对应 09号文档 TC-BEVY）
+1. **查询桥接不得在 `_process` 内同步等待**（PRE-ENG-005）。`QueryExecutor` 的 Godot 实现在独立线程执行，完成后经 `call_deferred` 回到主线程写入结果——Godot 的场景树非线程安全，从工作线程直接操作节点会导致不确定行为。
+2. **节点绑定时机**：`bindings` 必须在 `ready()` 中建立，而非构造时——GDExtension 对象构造时子节点尚未进入场景树。
 
-- `interpolate_position` 的四种边界情形（早于/晚于/区间内/单点）需要逐一测试，覆盖 §18.3 的分支逻辑。
-- `PrePlugin` 的 System 顺序需要一个集成测试验证：构造一个已知 `StandardPhysicalResponse`，推进固定数量的虚拟帧（`app.update()` 循环），断言 `Transform` 序列与手算插值结果一致。
-- `pre_query_dispatch_system`/`pre_query_poll_system` 需要测试"派发后不阻塞当前帧"（如断言 `app.update()` 单次调用的墙钟耗时不随查询耗时增长）。
+## 21. Tier 2 / Tier 3 边界详细设计（MVP 仅设计，不实现）
+
+### 21.1 `pre-ffi`（C ABI）接口形态
+
+```c
+/* 不透明句柄 */
+typedef struct PreContext  PreContext;
+typedef struct PrePlayback PrePlayback;
+
+/* POD 传输类型 */
+typedef struct { double position[3]; double rotation[4]; int32_t has_rotation; } PreTransform;
+
+/* ABI 版本校验：宿主启动时必须调用 */
+uint32_t pre_ffi_abi_version(void);
+
+/* 生命周期：每个 create 有配对的 destroy */
+PreContext*  pre_context_create(const PreContextDesc* desc);
+void         pre_context_destroy(PreContext* ctx);
+
+/* 错误一律为整型码；字符串经"调用方提供缓冲区"取回 */
+int32_t pre_playback_sample(PrePlayback* pb, uint64_t landmark_id, double t, PreTransform* out);
+int32_t pre_last_error_message(char* buf, size_t buf_len, size_t* out_len);
+```
+
+每个 `extern "C"` 函数的实现骨架（PRE-EMB-004）：
+
+```rust
+#[no_mangle]
+pub extern "C" fn pre_playback_sample(...) -> i32 {
+    std::panic::catch_unwind(|| { /* 实际逻辑 */ }).unwrap_or(PRE_ERR_PANIC)
+}
+```
+
+panic 跨 FFI 边界是未定义行为，因此**每个**导出函数都必须包裹，无例外。
+
+### 21.2 `pre-python`（PyO3）关键约束
+
+```rust
+#[pyfunction]
+fn search(py: Python<'_>, req: QueryRequestPy) -> PyResult<CandidateExplanationPy> {
+    py.allow_threads(|| {          // ★ 释放 GIL：否则冻结宿主 3D 软件整个 UI 线程
+        pre_retrieval::search(&req.into())
+    }).map(Into::into).map_err(to_py_err)
+}
+```
+
+`allow_threads` 包裹全部长耗时调用是 Tier 3 的硬性要求（PRE-ENG-010）。
+
+### 21.3 为何现在写下这些而不实现
+
+C ABI 一经发布即难以变更（R-12）。但边界约束必须现在确定，因为它**反向约束了 §18 中立契约的设计**——`LandmarkTransform` 使用 POD 数组而非数学库类型，正是这条约束的产物。若等到实现 Tier 2 时才发现契约层用了无法跨 ABI 的类型，代价是重构整个契约层与已有的 Tier 1 适配层。
+
+## 22. `pre-gpu`：GPU 计算后端详细设计（MVP 不实现）
+
+### 22.1 设备来源与上下文构造（PRE-GPU-002, ADR-012）
+
+```rust
+enum GpuDeviceSource {
+    HostProvided { device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue> },
+    CreateOwn { preferred_backend: Option<wgpu::Backends> },
+    Disabled,     // MVP 默认值
+}
+
+struct PreContextDesc {
+    gpu: GpuDeviceSource,          // ★ 即使 MVP 恒为 Disabled，该字段也必须存在
+    thread_policy: ThreadPolicy,   // PRE-EMB-003
+}
+```
+
+**MVP 阶段该字段恒为 `Disabled`，但字段本身必须从第一版就存在。** 这是 ADR-012 的直接落实：若初始化路径先按"无 GPU 概念"写成，后续要在其中插入"可选的外部设备"会波及全部构造路径与错误处理。
+
+### 22.2 计算后端抽象边界（PRE-GPU-001）
+
+`pre-solver-*` 只调用 `pre-gpu` 暴露的抽象（缓冲分配、kernel 派发、同步），不出现任何 `wgpu`/Vulkan/D3D 专有类型。这样 OQ-09 若最终否定 `wgpu` 选型，影响范围限于 `pre-gpu` 内部。
+
+### 22.3 回退与真值（PRE-GPU-003 / PRE-GPU-005）
+
+无 GPU 或初始化失败 → 记录原因并回退 CPU 路径，不得失败退出。GPU 实现必须与 CPU reference 在容差内对齐（PRE-PHY-002 的延伸），回归测试与现有 solver 数值对齐测试共用同一套框架。
+

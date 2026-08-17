@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-12 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
-| 输入基线 | 11_PRE_Testkit_Basic_Design.md |
+| 输入基线 | 11_PRE_Testkit_Basic_Design.md（v0.1.1） |
 | 关联文书 | 08（核心详细设计，本文书的 trait/类型均引用其定义）、09（测试用例一览） |
 
 ## 改订履历
@@ -15,6 +15,7 @@
 | 版本 | 日期 | 变更内容 | 作成者 |
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：具体类型定义、算法、错误处理、与 09 号文档的用例映射 | Claude |
+| v0.1.1 | 2026-08-17 | §8 映射表随 09 号文档 v0.1.4 的用例重编而更新；新增一致性套件条目 | Claude |
 
 ## 承认栏
 
@@ -293,6 +294,8 @@ impl MockBevyHarness {
 | `FixtureBuilder` | TC-CORE-001, TC-SIG-002, TC-ENC-003, TC-VER-004/005 |
 | `GoldenDataset` | TC-SIG-004, TC-SIG-005, TC-RET-002, TC-REF-001 |
 | 近似相等断言辅助 | 几乎所有含数值比较的用例（TC-SOLVER-001/002/004, TC-BEVY-003/004/005 等），不逐条列出 |
-| `MockBevyHarness` | TC-BEVY-006, TC-BEVY-007, TC-BEVY-008, TC-BEVY-009 |
+| `MockBevyHarness`（Mock Host Harness 首个实现） | TC-BEVY-001~004 |
+| 一致性套件执行框架（PRE-TK-011） | TC-CONF-001, TC-CONF-002, TC-CONF-003 |
+| `PlaybackCursor` 边界用例（经 `pre-engine-api`，非 testkit 组件，列此供对照） | TC-ENG-003~007 |
 
 > 说明：本表是 `pre-testkit` 内部维护的需求-用例映射，独立于 04_PRE_Traceability_Matrix.md（后者只追溯 01 号文档的 53 条核心需求，理由见 10号文档 §4）。若某条 09 号文档用例出现在本表中，代表实现阶段建议使用对应 testkit 组件，而非强制约束——具体测试代码是否采用 mock 仍由实现者根据 11号文档 §2 的双层测试策略判断。
