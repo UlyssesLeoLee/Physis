@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-04 |
-| 版本 | v0.1.1 |
+| 版本 | v0.1.2 |
 | 状态 | Draft |
-| 覆盖率 | 47/47 需求 ID 全覆盖（已自审确认，见改订履历） |
+| 覆盖率 | 53/53 需求 ID 全覆盖（含 PRE-BEVY-001~006，见改订履历） |
 
 ## 改订履历
 
@@ -15,6 +15,7 @@
 |---|---|---|
 | v0.1 | 2026-08-17 | 初版矩阵，PRE-API-001/002 合并为一行 |
 | v0.1.1 | 2026-08-17 | 自审发现合并行导致按 ID 检索遗漏，拆分为独立两行，恢复 47/47 覆盖 |
+| v0.1.2 | 2026-08-17 | 新增 PRE-BEVY-001~006 六行，覆盖率更新为 53/53 |
 
 Requirement → Architecture Component → Design Section → Test → Acceptance Criterion
 
@@ -67,8 +68,14 @@ Requirement → Architecture Component → Design Section → Test → Acceptanc
 | PRE-SEC-002 | N/A（V0.1不涉及） | — | — | OQ-05 |
 | PRE-OBS-001 | pre-verify | §26 Observability | CandidateExplanation 结构测试 | AC-04 |
 | PRE-OBS-002 | pre-runtime全链路 | §26 | stage timing 记录测试 | — |
+| PRE-BEVY-001 | pre-bevy（唯一依赖方）, pre-core/pre-solver-*/pre-retrieval/pre-atlas/pre-verify/pre-refine（零依赖约束对象） | §4 Component Diagram, §33.1, ADR-009 | `cargo tree` 依赖树检查（CI 自动化） | AC-06 |
+| PRE-BEVY-002 | pre-bevy | §33.2 回放设计 | Bevy 集成测试：加载 Experience 并断言实体 Transform 随时间变化 | AC-06 |
+| PRE-BEVY-003 | pre-bevy | §33.2（插值逻辑） | 插值函数单元测试（覆盖采样点间/边界/单点退化情形） | — |
+| PRE-BEVY-004 | pre-bevy, pre-retrieval, pre-verify | §33.3 异步查询桥接 | 异步查询集成测试：断言主线程/Schedule 不被阻塞 | — |
+| PRE-BEVY-005 | pre-bevy（Phase 2，未实现） | §33.1（预留方向说明） | N/A（Phase 2 候选，非 MVP 交付物） | — |
+| PRE-BEVY-006 | pre-bevy | §33.4 版本兼容策略 | crate 文档版本声明检查（人工/CI lint） | — |
 
 ## 需求覆盖检查
 
-- 所有 26 类需求前缀均至少映射到一个架构组件与设计章节：已核对，无遗漏。
-- 未映射到具体 Acceptance Criterion 的需求（如 PRE-DATA-004, PRE-SEC-002）均为决策类/延后类需求，已在 Open Questions 或 ADR 中登记，不视为覆盖缺口。
+- 所有 26 类需求前缀（含新增 PRE-BEVY）均至少映射到一个架构组件与设计章节：已核对，无遗漏。
+- 未映射到具体 Acceptance Criterion 的需求（如 PRE-DATA-004, PRE-SEC-002, PRE-BEVY-003/004/005/006）均为决策类/延后类/支撑性需求，已在 Open Questions 或 ADR 中登记，不视为覆盖缺口——PRE-BEVY 系列的端到端验收统一由 AC-06 承担（PRE-BEVY-001/002 直接对应，其余为支撑该验收的内部机制）。
