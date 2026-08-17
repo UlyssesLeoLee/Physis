@@ -4,11 +4,11 @@ Rust物理引擎 — Physical Retrieval Engine（PRE）
 
 PRE 的目标不是制作一个传统物理引擎，而是构建一个**可计算、可索引、可向量检索、可验证、可持续积累经验的物理运行时**：先用可靠的传统 solver（Rigid / XPBD / MPM / FEM）批量产生「初始状态 + 激励 + 材料 + 约束 + 求解器 + 参数 → 物理响应」的经验，标准化为可检索的 Physical Signature / Embedding，沉淀进 Physics Atlas；再通过 `观测 → 检索 → 仿真验证 → 参数优化` 的闭环反推出最能解释观察结果的物理模型。核心原则：**检索只负责生成候选，物理仿真才是唯一的最终验证手段**（Retrieval proposes, Physics verifies）。
 
-当前阶段：需求与基本设计基线已完成（V0.1 Draft），尚未开始实现代码。
+当前阶段：需求、基本设计、详细设计文档基线均已完成（V0.1 Draft），尚未开始实现代码。
 
 ## 文档
 
-需求定义与基本设计相关文档位于 [`docs/`](docs/) 目录，遵循 IPA（情報処理推進機構）文书惯例编写（文书管理表 / 改订履历 / 承认栏 / 需求优先度 / 追踪矩阵）。阅读顺序建议：01 → 02 → 03 → 04，05/06/07 按需查阅。
+需求定义、基本设计与详细设计相关文档位于 [`docs/`](docs/) 目录，遵循 IPA（情報処理推進機構）文书惯例编写（文书管理表 / 改订履历 / 承认栏 / 需求优先度 / 追踪矩阵 / テストケース一覧）。阅读顺序建议：01 → 02 → 03 → 04 → 08 → 09，05/06/07 按需查阅。
 
 | 编号 | 文档 | 概要 |
 |---|---|---|
@@ -19,6 +19,8 @@ PRE 的目标不是制作一个传统物理引擎，而是构建一个**可计�
 | 05 | [PRE_Risk_Issue_Register](docs/05_PRE_Risk_Issue_Register.md) | 风险登记簿（R-01～R-10）与架构自审问题登记（ISS-001～ISS-010），标注严重度、影响、证据与建议，关键项（如参数不可辨识暴露、检索召回监控、验证窗口切分）已回填至基本设计书正文。 |
 | 06 | [PRE_MVP_Experiment_Plan](docs/06_PRE_MVP_Experiment_Plan.md) | MVP 假设验证实验计划（H1～H5）：相似响应是否在 embedding 空间中更近、跨 solver 检索是否有效、ANN 是否显著降低搜索成本、检索+验证是否优于单独检索、噪声鲁棒性；含性能基准目标。 |
 | 07 | [PRE_Glossary](docs/07_PRE_Glossary.md) | 项目术语表。 |
+| 08 | [PRE_Detailed_Design](docs/08_PRE_Detailed_Design.md) | 详细设计书。逐 crate 展开 02 号文档的架构：核心数据结构完整字段定义、SolverPlugin trait 与 Rigid/XPBD/MPM 各 solver 的内部算法（积分方法、约束求解、to_standard_response 映射规则）、特征提取与 Encoder 算法细节、SQLite/HNSW/Blob 存储 schema、检索融合公式、验证流水线（含窗口切分与参数不可辨识检测算法）、局部搜索优化器、数据集生成器、错误码一览与三条核心处理路径的完整时序。 |
+| 09 | [PRE_Test_Case_List](docs/09_PRE_Test_Case_List.md) | 测试用例一览。对应 08 号文档各模块的 TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/E2E 十类用例，每条含前置条件、输入、期望输出与需求/设计出处，供实现阶段直接转化为自动化测试；不含 H1～H5 假设验证实验（见 06 号文档）。 |
 
 ## 核心设计原则
 
