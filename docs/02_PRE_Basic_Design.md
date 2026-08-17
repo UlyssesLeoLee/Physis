@@ -1,8 +1,29 @@
 # Physical Retrieval Engine（PRE）基本设计书
 
-版本：v0.1 draft
-输入基线：01_PRE_Requirements.md
-关联：03_PRE_Architecture_ADR.md（决策理由）、04_PRE_Traceability_Matrix.md
+## 文书管理表
+
+| 项目 | 内容 |
+|---|---|
+| 文书编号 | PRE-DOC-02 |
+| 文书名称 | Physical Retrieval Engine 基本设计书 |
+| 版本 | v0.1 |
+| 状态 | Draft — 基于 01号文档 v0.1.1 需求基线编制，尚未经承认 |
+| 输入基线 | 01_PRE_Requirements.md（需求变更后须重新走查本文书是否受影响） |
+| 关联文书 | 03（ADR，决策理由）、04（追踪矩阵）、05（自审发现的 ISS 已回填至相应章节） |
+
+## 改订履历
+
+| 版本 | 日期 | 变更内容 | 作成者 |
+|---|---|---|---|
+| v0.1 | 2026-08-17 | 初版：32章节架构设计 | Claude |
+| v0.1.1 | 2026-08-17 | 补充文书管理表、承认栏；按自审结果（05号文档 ISS-006/009）在 §13/§26 补充参数不可辨识暴露机制与召回不足监控说明 | Claude |
+
+## 承认栏
+
+| 角色 | 承认日期 | 签署 |
+|---|---|---|
+| 项目负责人（ST-05） | — | 未承认 |
+| Rust系统负责人（ST-03） | — | 未承认 |
 
 ---
 
@@ -238,6 +259,10 @@ Candidate(solver, material_params, constraints)
 
 MVP 明确不实现的误差维度（记 Open Question，非阻塞）：`topology_error`（拓扑变化误差，MVP solver 集合基本不涉及拓扑改变/断裂）。
 
+**匹配窗口 / held-out 未来窗口分离（对应自审 ISS-009 修正）**：Observed Response 在进入本 Pipeline 前必须先切分为匹配窗口（前段，供检索与 Signature/Embedding 生成使用）与 held-out 未来窗口（后段，仅在本节的"与 Observed Response 逐维比较"步骤中使用，不参与检索或参数猜测）。若不做此切分，Verification 实质上是在检验"能否拟合已观测到的同一段轨迹"，而非"能否预测未见过的未来状态"，二者对 H4 假设的证明力完全不同。具体窗口比例与实验设计见 06_PRE_MVP_Experiment_Plan.md。
+
+**参数不可辨识暴露机制（对应自审 ISS-006 修正）**：Verification 阶段除计算单一 PhysicsVerificationScore 外，必须对 Top-M 候选（进入 Refinement 前的候选集合）额外统计其材料/求解器参数在参数空间中的分散度（如各参数维度的标准差或极差）。若分散度超过预设阈值（即"多组参数产生几乎相同误差"），Explanation 输出必须显式标注 `identifiability: low`，并列出全部 Top-M 候选及其参数，而非仅返回单一 best——避免向下游呈现虚假的唯一确定性。该阈值与 CandidateScore 权重同属 PRE-NFR-004 的可配置项。
+
 ## 14. Parameter Refinement Architecture
 
 ```
@@ -348,9 +373,12 @@ CandidateExplanation {
     retrieval_score, behavior_sim, deformation_sim, temporal_sim,
     simulation_error{position, velocity, deformation, ...},
     stability_score, computational_cost, confidence,
+    identifiability,          // low | normal，见 §13 参数不可辨识暴露机制
     stage_timings{encode, search, simulate, verify, refine}
 }
 ```
+
+**检索召回不足监控（对应自审 ISS-007 修正）**：`pre-retrieval` 在 post-filter（§11, ADR-007）执行后，若过滤后剩余候选数低于可配置阈值（`PRE-NFR-004` 管辖的配置项之一），必须记录一条结构化日志（含触发时的 metadata 过滤条件、ANN 召回数 N、过滤后剩余数），供后续判断是否需要转向 pre-filter 或增大 N。此为观测手段，不改变 MVP 的 post-filter 决策本身。
 
 ## 27. Testing Strategy
 

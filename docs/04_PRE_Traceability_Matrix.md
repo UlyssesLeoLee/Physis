@@ -1,5 +1,21 @@
 # Requirement Traceability Matrix
 
+## 文书管理表
+
+| 项目 | 内容 |
+|---|---|
+| 文书编号 | PRE-DOC-04 |
+| 版本 | v0.1.1 |
+| 状态 | Draft |
+| 覆盖率 | 47/47 需求 ID 全覆盖（已自审确认，见改订履历） |
+
+## 改订履历
+
+| 版本 | 日期 | 变更内容 |
+|---|---|---|
+| v0.1 | 2026-08-17 | 初版矩阵，PRE-API-001/002 合并为一行 |
+| v0.1.1 | 2026-08-17 | 自审发现合并行导致按 ID 检索遗漏，拆分为独立两行，恢复 47/47 覆盖 |
+
 Requirement → Architecture Component → Design Section → Test → Acceptance Criterion
 
 | Requirement ID | Architecture Component | Design Section (02号文档) | Test | Acceptance Criterion |

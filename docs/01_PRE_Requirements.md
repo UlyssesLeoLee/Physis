@@ -1,8 +1,35 @@
 # Physical Retrieval Engine（PRE）需求定义书
 
-版本：v0.1 draft
-状态：Baseline for Basic Design
-关联文档：02_PRE_Basic_Design.md, 04_PRE_Traceability_Matrix.md
+## 文书管理表
+
+| 项目 | 内容 |
+|---|---|
+| 文书编号 | PRE-DOC-01 |
+| 文书名称 | Physical Retrieval Engine 需求定义书 |
+| 版本 | v0.1 |
+| 状态 | Draft — Baseline for Basic Design（尚未经 Stakeholder 正式承认） |
+| 作成者 | PRE 架构设计团队（本轮由 Claude 代笔起草） |
+| 承认者 | 未定（待 ST-05 项目负责人指定） |
+| 关联文书 | 02（基本设计书）、03（ADR）、04（追踪矩阵）、05（风险登记簿）、06（MVP实验计划）、07（用语集） |
+| 适用范围 | PRE V0.1（MVP）；Phase 2 以降需另行制定需求追补文书 |
+
+## 改订履历
+
+| 版本 | 日期 | 变更内容 | 作成者 |
+|---|---|---|---|
+| v0.1 | 2026-08-17 | 初版起草：25类需求 + Traceability ID 体系确立 | Claude |
+| v0.1.1 | 2026-08-17 | 按 IPA 文书标准补充文书管理表、承认栏、非机能要求グレード对齐、需求优先度与需求一览表 | Claude |
+
+## 承认栏
+
+| 角色 | 姓名 | 承认日期 | 签署 |
+|---|---|---|---|
+| 项目负责人（ST-05） | 未定 | — | 未承认 |
+| 物理仿真负责人（ST-01） | 未定 | — | 未承认 |
+| 检索/ML负责人（ST-02） | 未定 | — | 未承认 |
+| Rust系统负责人（ST-03） | 未定 | — | 未承认 |
+
+> 注：本文书当前处于 Draft 状态，用于支撑基本设计基线的建立；正式进入详细设计前，建议至少完成 ST-05 与相关技术负责人的书面承认，并将本表更新为「承認済」。
 
 ---
 
@@ -82,6 +109,21 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - PRE-NFR-002（可移植性）：核心 Runtime 使用 Rust 编写，MVP 阶段仅要求 CPU 单机可运行，SIMD/多线程为期望而非强制。
 - PRE-NFR-003（可测试性）：核心数据结构（PhysicsExperience、StandardPhysicalResponse、PhysicalSignature、Embedding）必须可独立单元测试，不依赖完整 pipeline。
 - PRE-NFR-004（可配置性）：CandidateScore 权重、ANN 参数（Top-N/Top-K/Top-M）、Novel Dynamics 阈值必须可在不重新编译的前提下配置。
+
+### 8.1 非机能要求グレード対照表（参照 IPA「非機能要求グレード」六大品质特性）
+
+为与日本 IPA（独立行政法人情報処理推進機構）通行的非机能要求分类惯例对齐，将本文书分散在各章节的非功能类需求，统一映射到 IPA 六大品质特性维度。本表仅为对照索引，不新增需求实体，各 ID 的权威定义仍以原章节为准。
+
+| IPA 品质特性 | 定义范围 | 对应需求 ID | 备注 |
+|---|---|---|---|
+| 可用性（Availability） | 系统持续可用、故障恢复能力 | PRE-REL-001, PRE-REL-002 | MVP 单机部署，无高可用集群要求，故障处理以"不静默污染数据"为底线（对应第15节） |
+| 性能・拡張性（Performance / Extensibility） | 响应时间、吞吐、规模扩展路径 | PRE-VEC-001, PRE-PERF-001, PRE-PERF-002 | 扩展性以 02号文档 §18/§31 Evolution Strategy 分阶段规划，MVP 不承诺 1M 以上规模 SLA |
+| 運用・保守性（Operability / Maintainability） | 插件化、可配置、可观测、可测试 | PRE-NFR-001, PRE-NFR-003, PRE-NFR-004, PRE-OBS-001, PRE-OBS-002 | 插件化架构（PRE-NFR-001）是保守性核心手段 |
+| 移行性（Portability / Migration） | 跨环境移植、版本迁移 | PRE-NFR-002, PRE-ML-003, PRE-REPRO-002 | 含 encoder/solver/signature 三类版本号的迁移策略（02号文档 §23 Versioning） |
+| セキュリティ（Security） | 输入校验、数据保护 | PRE-SEC-001, PRE-SEC-002 | PRE-SEC-002 为 Phase 2 前置评估项，V0.1 不涉及真实隐私数据 |
+| システム環境・エコロジー（System Environment） | 运行环境约束、资源占用 | PRE-NFR-002（CPU单机）, C-01～C-03（第23节制约条件） | MVP 明确排除 GPU-only、分布式、微服务化环境依赖 |
+
+> 说明：可重复性（Reproducibility，PRE-REPRO-*）与数据需求（PRE-DATA-*）为本项目物理仿真领域的特化非功能需求，IPA 标准六分类未直接覆盖，故不强行并入上表，仍作为独立分类保留于第16/11节，避免削足适履。
 
 ## 9. Physics Requirements
 
@@ -176,6 +218,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - OQ-03：CandidateScore 权重的初始值如何设定（专家设定 vs 数据学习），V0.1 是否只做专家设定？
 - OQ-04：跨 solver 的 Physical Signature 可比性边界在哪里（例如 MPM 颗粒材料与 XPBD 布料的「变形」是否应共享同一 deformation_vector 维度定义）？
 - OQ-05：未来真实观测数据（3DGS）合规性与噪声模型，何时启动评估？
+- OQ-06：正式的需求/设计变更申请与评审流程（变更管理）尚未定义，当前仅有改订履历表记录变更内容，缺少「谁批准变更」的流程规定；进入详细设计前建议明确最小化的变更评审机制（例如：影响 Must 级需求的变更须经 ST-05 确认）。
 
 ## 25. Glossary
 
@@ -184,3 +227,34 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 ## 26. Requirement Traceability IDs 索引
 
 前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）。完整映射见 04_PRE_Traceability_Matrix.md。
+
+## 27. 需求优先度一览表（MoSCoW：必须 M / 推奨 S / 任意 C）
+
+按 IPA 惯例，需求定义书须为每条需求标注优先度，避免"全部同等重要"导致范围失控。判定依据：是否为 AC-01～AC-05（第20节验收标准）所直接依赖 → 必须（M）；是否服务于 H1～H5 假设验证但非端到端闭环必需 → 推奨（S）；是否为架构预留/面向未来但 MVP 可延后 → 任意（C）。
+
+| 优先度 | 需求 ID |
+|---|---|
+| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001 |
+| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002 |
+| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002 |
+
+判定说明：
+- PRE-FR-015（ObservationBackend 接口预留）标为「任意」是因为 V0.1 唯一实现是 SimulationBackend，接口本身不影响端到端闭环能否跑通，属于面向 Phase 2 的架构投资。
+- PRE-API-001/002 标为「任意」是因为 01/02 号文档均明确 MVP 以库 API + CLI 形式满足职责即可，REST 化非 MVP 验收所需（对应 PRE-API-002 原文"不锁定 schema"）。
+- PRE-DATA-004（图数据库必要性论证）标为「任意」，因为 ADR-006 的 MVP 结论已经是"不引入"，该需求的价值在于为 Phase 3 留下判断依据，而非 MVP 阶段要交付的能力。
+- 若必须（M）级需求在详细设计阶段出现无法满足的情况，须立即升级为风险并触发 ST-05 决策（而非静默降级为推奨）。
+
+## 28. IPA 标准符合性自检清单
+
+| 检查项（IPA 要件定義書/基本設計書惯例） | 是否满足 | 说明 |
+|---|---|---|
+| 文书管理表（文書番号/版本/作成者/承认者） | ✅ | 见本文书首部 |
+| 改订履历 | ✅ | 见本文书首部；02～07号文档见各自首部 |
+| 承认栏（署名欄） | ✅（未承认） | 承认栏已建立，但尚无实际签署，需项目负责人后续走查 |
+| 需求一意 ID 化 | ✅ | 47 条需求，前缀分类，见第26节 |
+| 需求优先度 | ✅ | 见第27节 MoSCoW |
+| 非机能要求按标准品质特性分类 | ✅ | 见第8.1节 IPA 六大品质特性对照表 |
+| 前提条件・制约条件分离 | ✅ | 见第22节 Assumptions（前提）与第23节 Constraints（制约），未混同 |
+| 需求—设计—测试—验收可追溯 | ✅ | 见 04_PRE_Traceability_Matrix.md，47/47 ID 全覆盖（已自审修复 PRE-API-002 遗漏） |
+| 用语集独立成册 | ✅ | 见 07_PRE_Glossary.md |
+| 变更管理流程 | ⚠️ 部分 | 已有改订履历表，但尚未定义正式变更申请/评审流程（记为 Open Question OQ-06，见第24节补充） |

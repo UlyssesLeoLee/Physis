@@ -1,5 +1,20 @@
 # Risk & Issue Register
 
+## 文书管理表
+
+| 项目 | 内容 |
+|---|---|
+| 文书编号 | PRE-DOC-05 |
+| 版本 | v0.1.1 |
+| 状态 | Draft |
+
+## 改订履历
+
+| 版本 | 日期 | 变更内容 |
+|---|---|---|
+| v0.1 | 2026-08-17 | 初版：R-01～R-10 风险 + ISS-001～ISS-010 |
+| v0.1.1 | 2026-08-17 | ISS-006/ISS-007/ISS-009 的应对措施已回填至 02号文档正文（§13/§26），本文书状态更新为"已落实设计" |
+
 本登记表分两部分：Risks（项目/技术风险，未必已发生）与 Issues（架构自审中发现的具体问题，ISS-XXX）。
 
 ---
@@ -74,6 +89,7 @@
 - Recommendation: Verification 阶段增加对 Top-M 候选参数分散度的统计，若分散度高应在 Explanation 输出中显式标注"参数不可辨识"，而非仅返回单一 best
 - Affected Requirements: PRE-OBS-001, PRE-FR-009
 - Affected Components: pre-verify
+- Status: **已落实设计**（02号文档 v0.1.1 §13 新增"参数不可辨识暴露机制"，`CandidateExplanation.identifiability` 字段，§26）
 
 ### Vector Retrieval
 
@@ -84,6 +100,7 @@
 - Recommendation: MVP 阶段在检索接口中加入"过滤后候选数低于阈值"的日志/告警，为后续判断是否需要 pre-filter 提供数据依据
 - Affected Requirements: PRE-VEC-003, PRE-OBS-002
 - Affected Components: pre-retrieval
+- Status: **已落实设计**（02号文档 v0.1.1 §26 新增"检索召回不足监控"）
 
 ### Dataset
 
@@ -104,6 +121,7 @@
 - Recommendation: 06号 MVP 实验应将观测响应切分为"匹配窗口"（用于检索与初步验证）与"held-out 未来窗口"（仅用于最终打分），以真正检验预测能力而非拟合能力
 - Affected Requirements: PRE-FR-008, H4
 - Affected Components: pre-verify, 06号文档实验设计
+- Status: **已落实设计**（02号文档 v0.1.1 §13 新增窗口切分说明，与 06号文档实验设计一致）
 
 ### MVP
 

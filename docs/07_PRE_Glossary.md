@@ -1,5 +1,15 @@
 # Glossary
 
+## 文书管理表
+
+| 项目 | 内容 |
+|---|---|
+| 文书编号 | PRE-DOC-07 |
+| 版本 | v0.1 |
+| 状态 | Draft |
+
+---
+
 - **PRE (Physical Retrieval Engine)**：本项目，构建可计算、可索引、可检索、可验证、可持续积累经验的物理运行时。
 - **Physics Experience**：一次可重放的物理实验记录，包含初始状态、激励、材料、约束、solver、参数与响应。
 - **Raw Solver State**：某个具体 solver 内部的私有状态表示，不对外统一。
