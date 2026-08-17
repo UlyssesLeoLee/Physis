@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-09 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
-| 输入基线 | 08_PRE_Detailed_Design.md |
+| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.1） |
 | 说明 | 本文书是 IPA 详細設計書惯例中「テストケース一覧」的落实：为每个需要验证的行为给出用例 ID、前置条件、输入、期望输出、对应需求/设计出处，供实现阶段直接转化为自动化测试。本文书不包含 H1~H5 假设验证实验（见 06 号文档），仅覆盖单元/集成级测试用例。 |
 
 ## 改订履历
@@ -15,12 +15,13 @@
 | 版本 | 日期 | 变更内容 |
 |---|---|---|
 | v0.1 | 2026-08-17 | 初版：TC-CORE / TC-SOLVER / TC-SIG / TC-ENC / TC-RET / TC-VER / TC-REF / TC-GEN / TC-ATLAS / TC-E2E 十类用例 |
+| v0.1.1 | 2026-08-17 | 新增 TC-BEVY 用例类，对应 08号文档 §18 `pre-bevy` 详细设计 |
 
 ---
 
 ## 用例编号规则
 
-`TC-<模块前缀>-<三位序号>`。模块前缀对应 08 号文档章节：CORE(§2) / SOLVER(§3-6) / SIG(§7) / ENC(§8) / ATLAS(§9) / RET(§10) / VER(§11) / REF(§12) / GEN(§13) / E2E(跨模块)。
+`TC-<模块前缀>-<三位序号>`。模块前缀对应 08 号文档章节：CORE(§2) / SOLVER(§3-6) / SIG(§7) / ENC(§8) / ATLAS(§9) / RET(§10) / VER(§11) / REF(§12) / GEN(§13) / BEVY(§18) / E2E(跨模块)。
 
 ---
 
@@ -110,6 +111,21 @@
 | TC-GEN-002 | 批量生成任务中部分样本触发数值发散 | 运行批量生成 | 发散样本不写入 Atlas，但被完整记录进 `GenerationFailureLog`（含参数与原因） | ISS-008, 08§13.2 |
 | TC-GEN-003 | 多核环境 | 并行运行 N 个独立生成任务 | 各任务结果与单独串行运行结果一致（无共享状态引发的数据竞争） | PRE-PERF-002 |
 
+## TC-BEVY：Bevy 引擎适配层
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-BEVY-001 | `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine` 六个 crate 已构建 | 运行 `cargo tree -p <每个核心 crate>` | 依赖树输出中不出现 `bevy` | PRE-BEVY-001, 08§18.1, AC-06 |
+| TC-BEVY-002 | 未启用 `pre-bevy` 的 workspace 构建 | `cargo build --workspace --exclude pre-bevy` | 构建成功，不拉取/编译 bevy 及其依赖 | PRE-BEVY-001 |
+| TC-BEVY-003 | 一条完整 `StandardPhysicalResponse`，`sample_times = [0.0, 1.0, 2.0]` | `interpolate_position(response, landmark, t=0.5)` | 返回 `t=0.0` 与 `t=1.0` 两帧 position 的线性插值结果（alpha=0.5） | PRE-BEVY-003, 08§18.3 |
+| TC-BEVY-004 | 同上 response | `interpolate_position(response, landmark, t=-1.0)` 与 `t=5.0` | 分别钳制返回首帧与末帧 position，不 panic、不外推 | 08§18.3（Bracket::Before/After） |
+| TC-BEVY-005 | `sample_times` 仅含 1 个采样点 | `interpolate_position(...)` | 返回该唯一采样点的 position（退化情形） | PRE-BEVY-003, 08§18.3（Bracket::SinglePoint） |
+| TC-BEVY-006 | 一个最小 Bevy `App`，注册 `PrePlugin`，加载一条 Experience | 推进若干虚拟帧（`app.update()` 循环），每帧改变 `Time` | 各 `PreLandmark` 实体的 `Transform.translation` 按预期插值序列变化 | PRE-BEVY-002, 08§18.4, AC-06 |
+| TC-BEVY-007 | 非循环模式的 `PrePlaybackState`，推进帧直至超过 `response.duration` | 检查 `PrePlaybackFinished` 事件 | 事件被触发且仅触发一次（不重复触发） | 08§18.2 |
+| TC-BEVY-008 | 已注册 `query_bridge` feature 的 `PrePlugin`，写入一个 `PreQueryRequests` 条目 | 推进多帧，同时人为让查询任务耗时明显长于单帧预算 | 单帧 `app.update()` 墙钟耗时不随查询任务耗时增长（即查询在后台线程完成，不阻塞主 Schedule） | PRE-BEVY-004, 08§18.5 |
+| TC-BEVY-009 | 查询任务已完成 | 下一帧 `pre_query_poll_system` 执行 | 对应结果出现在 `PreQueryResults`，且该条目从待处理列表移除 | 08§18.5 |
+| TC-BEVY-010 | `pre-bevy` crate 文档 | 检查 crate 顶层文档 | 明确声明所支持的单一 Bevy 主版本号 | PRE-BEVY-006, 08§18.1 |
+
 ## TC-E2E：端到端集成
 
 | ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
@@ -123,4 +139,4 @@
 
 ## 覆盖检查
 
-本用例集覆盖 08 号文档全部 14 个模块章节（§2~§13、§15 错误码），且每条用例均标注对应需求 ID 或设计出处，可反向验证 04_PRE_Traceability_Matrix.md 中 "Test" 列的具体化实现。若实施阶段发现某需求 ID 在本文书中无对应 TC，应视为测试覆盖缺口并补充。
+本用例集覆盖 08 号文档全部 15 个模块章节（§2~§13、§15 错误码、§18 pre-bevy），且每条用例均标注对应需求 ID 或设计出处，可反向验证 04_PRE_Traceability_Matrix.md 中 "Test" 列的具体化实现。若实施阶段发现某需求 ID 在本文书中无对应 TC，应视为测试覆盖缺口并补充。

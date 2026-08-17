@@ -8,15 +8,16 @@
 | 文书名称 | Physical Retrieval Engine 详细设计书 |
 | 版本 | v0.1 |
 | 状态 | Draft |
-| 输入基线 | 02_PRE_Basic_Design.md（v0.1.1）、03_PRE_Architecture_ADR.md |
+| 输入基线 | 02_PRE_Basic_Design.md（v0.1.2）、03_PRE_Architecture_ADR.md（v0.1.2） |
 | 关联文书 | 04（追踪矩阵，本文书新增内容追加映射见文末）、09（测试用例一览） |
-| 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30）；FEM 仍为 stub，不在本文书详细展开 |
+| 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30；以及 §33 定义的 Bevy 回放能力）；FEM 与 Bevy 场景导入方向（PRE-BEVY-005）仍为 stub/Phase 2，不在本文书详细展开 |
 
 ## 改订履历
 
 | 版本 | 日期 | 变更内容 | 作成者 |
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：crate 内部设计、数据结构、trait 签名、核心算法、错误模型、存储 schema | Claude |
+| v0.1.1 | 2026-08-17 | 新增 §18 `pre-bevy` 详细设计，响应 02号文档 v0.1.2 新增的 §33 Engine Integration Architecture | Claude |
 
 ## 承认栏
 
@@ -47,6 +48,7 @@
 15. エラーコード一覧（错误码一览）
 16. 处理流程时序（主要 3 条路径的逐步时序）
 17. 与 02/04 号文档的追加映射
+18. `pre-bevy`：Bevy 引擎适配层详细设计
 
 ---
 
@@ -758,5 +760,127 @@ pre-cli gen --experiment-def <path> --n-samples <n> --strategy lhs
 | Dataset 失败点记录 | §13.2 | 02号 §20 | PRE-REL-001, PRE-FR-014 |
 | Encoder 版本与归一化统计量绑定 | §8.3 | 02号 §23 | PRE-ML-003, PRE-REPRO-002 |
 | SQLite/HNSW/Blob 具体 schema | §9 | 02号 §17, §18 | PRE-DATA-001~003 |
+| pre-bevy 回放/异步桥接/版本策略 | §18 | 02号 §33（v0.1.2 新增） | PRE-BEVY-001~006 |
 
-> 说明：04 号文档本身不在本次修改范围内（避免与已合并 PR 的追踪矩阵产生大范围重写风险）；上表作为详细设计与追踪矩阵之间的补充索引，若后续追踪矩阵改版，可直接并入其 "Design Section" 列。
+> 说明：本次修订时 04 号文档的 47 条既有需求未重写"Design Section"列（避免大范围改动已合并内容），仅追加了 PRE-BEVY-001~006 六行新记录（见 04号文档 v0.1.2），本表作为既有 47 条需求与本文书之间的补充索引；上表末行的 pre-bevy 相关条目已直接体现在 04 号文档新增行中，不存在缺口。
+
+---
+
+## 18. `pre-bevy`：Bevy 引擎适配层详细设计
+
+本节是 02号文档 §33 的下一层，给出 `pre-bevy` 的具体类型定义、系统调度顺序与数值算法。前提约束（不重复展开，见 02号文档 §33.1 与 ADR-009）：`pre-bevy` 单向依赖 `pre-core`，核心六个 crate 对其零依赖。
+
+### 18.1 Cargo 依赖与 feature 设计
+
+```toml
+# pre-bevy/Cargo.toml（示意）
+[dependencies]
+pre-core = { path = "../pre-core" }
+pre-retrieval = { path = "../pre-retrieval", optional = true }   # 仅 PRE-BEVY-004 需要
+pre-verify = { path = "../pre-verify", optional = true }
+bevy = { version = "0.X", default-features = false, features = ["bevy_render", "bevy_transform"] }
+
+[features]
+default = ["playback"]
+playback = []                          # PRE-BEVY-002/003
+query_bridge = ["pre-retrieval", "pre-verify"]   # PRE-BEVY-004，可选启用
+```
+
+`playback` 与 `query_bridge` 拆为独立 feature：仅需要回放能力的下游用户不必编译进 `pre-retrieval`/`pre-verify`，减少不必要的编译依赖面（呼应 ADR-009 的"最小依赖侵入"精神，在 `pre-bevy` 内部也贯彻同一原则）。
+
+### 18.2 组件/资源类型完整定义
+
+```rust
+#[derive(Component, Clone, Copy)]
+struct PreLandmark {
+    landmark_id: LandmarkId,
+    experience_id: ExperienceId,
+}
+
+#[derive(Resource)]
+struct PrePlaybackState {
+    response: StandardPhysicalResponse,
+    playback_time: f64,
+    speed: f64,
+    looping: bool,
+}
+
+#[derive(Event)]
+struct PrePlaybackFinished { experience_id: ExperienceId }   // 非循环模式播放结束时触发，供 Bevy 应用响应
+```
+
+### 18.3 插值算法细节
+
+```rust
+fn interpolate_position(response: &StandardPhysicalResponse, landmark: LandmarkId, t: f64) -> Vec3 {
+    let idx = response.landmarks.iter().position(|&l| l == landmark)
+        .expect("landmark not present in this response");   // 契约：landmark 必须来自同一 response，调用方保证
+    let times = &response.sample_times;
+    match binary_search_bracket(times, t) {
+        Bracket::Before => response.position[idx][0],                          // t 早于首个采样点：钳制到首帧
+        Bracket::After  => *response.position[idx].last().unwrap(),            // t 晚于末个采样点：钳制到末帧
+        Bracket::Between(i, j) => {
+            let alpha = (t - times[i]) / (times[j] - times[i]);
+            response.position[idx][i].lerp(response.position[idx][j], alpha as f32)
+        }
+        Bracket::SinglePoint => response.position[idx][0],                     // 仅 1 个采样点：退化为常量（PRE-BEVY-003 边界情形）
+    }
+}
+```
+
+`binary_search_bracket` 对 `sample_times`（假定非降序，若非等间隔仍适用）做二分查找，返回 `t` 所在区间；三种边界情形（早于/晚于/单点）均不 panic，符合 §15 错误处理原则（对用户输入之外的内部不变量用 `expect` 是可接受的，因为 `landmark` 集合由 `pre-bevy` 自身在生成 `PreLandmark` 组件时保证与 `response.landmarks` 一致，属契约违反而非可恢复错误）。
+
+### 18.4 System 调度顺序
+
+```rust
+impl Plugin for PrePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<PreQueryRequests>()
+           .init_resource::<PreQueryResults>()
+           .add_event::<PrePlaybackFinished>()
+           .add_systems(Update, (
+               pre_playback_system,              // §18.3 插值 + Transform 更新
+               pre_playback_finished_detector,   // 检测非循环播放到达末帧，发出事件
+               pre_query_dispatch_system,        // 消费 PreQueryRequests，派发后台任务（feature = query_bridge）
+               pre_query_poll_system,            // 轮询后台任务完成情况，写入 PreQueryResults
+           ).chain());   // 顺序执行：先更新回放状态，再处理事件，再处理查询——避免同帧内状态竞争
+    }
+}
+```
+
+四个系统在同一 `Update` stage 内以 `.chain()` 强制顺序执行，避免 `pre_playback_finished_detector` 读到本帧尚未更新的 `playback_time`（保证系统间数据依赖的确定性，属于 Bevy ECS 调度层面的实现细节，不属于架构决策，故不产生新 ADR）。
+
+### 18.5 异步查询后台任务实现要点
+
+```rust
+fn pre_query_dispatch_system(mut requests: ResMut<PreQueryRequests>, task_pool: Res<AsyncComputeTaskPool>,
+                              mut pending: Local<Vec<(QueryId, Task<CandidateExplanation>)>>) {
+    for req in requests.0.drain(..) {
+        let task = task_pool.spawn(async move {
+            let candidates = pre_retrieval::search(&req.query_signature, req.encoder_version, req.top_n, req.filter);
+            pre_verify::verify_best(&candidates, &req.observed_heldout)
+        });
+        pending.push((req.id, task));
+    }
+}
+
+fn pre_query_poll_system(mut pending: Local<Vec<(QueryId, Task<CandidateExplanation>)>>,
+                          mut results: ResMut<PreQueryResults>) {
+    pending.retain_mut(|(id, task)| {
+        if let Some(result) = future::block_on(future::poll_once(task)) {
+            results.0.insert(*id, result);
+            false   // 完成，移出待处理列表
+        } else {
+            true    // 未完成，保留
+        }
+    });
+}
+```
+
+使用 Bevy 自带的 `AsyncComputeTaskPool`（而非独立 `std::thread`），复用 Bevy 的任务调度基础设施，避免 `pre-bevy` 自行管理线程池——这是本节相对 02号文档 §33.3 的进一步细化：02 号文档只说明"后台任务 + 轮询"模式，未指定具体机制；本节明确选用 Bevy 原生任务池，理由是与宿主应用共享同一调度资源，避免线程数失控。
+
+### 18.6 单元测试要点（对应 09号文档 TC-BEVY）
+
+- `interpolate_position` 的四种边界情形（早于/晚于/区间内/单点）需要逐一测试，覆盖 §18.3 的分支逻辑。
+- `PrePlugin` 的 System 顺序需要一个集成测试验证：构造一个已知 `StandardPhysicalResponse`，推进固定数量的虚拟帧（`app.update()` 循环），断言 `Transform` 序列与手算插值结果一致。
+- `pre_query_dispatch_system`/`pre_query_poll_system` 需要测试"派发后不阻塞当前帧"（如断言 `app.update()` 单次调用的墙钟耗时不随查询耗时增长）。

@@ -5,8 +5,15 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-07 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
+
+## 改订履历
+
+| 版本 | 日期 | 变更内容 |
+|---|---|---|
+| v0.1 | 2026-08-17 | 初版术语表 |
+| v0.1.1 | 2026-08-17 | 新增 Bevy 集成相关术语（Engine Adapter / pre-bevy / Landmark / Playback） |
 
 ---
 
@@ -35,3 +42,8 @@
 - **H1~H5**：MVP 阶段五条核心待验证假设，见 06_PRE_MVP_Experiment_Plan.md。
 - **ADR (Architecture Decision Record)**：架构决策记录，见 03_PRE_Architecture_ADR.md。
 - **ISS-XXX**：架构自审登记的具体问题条目，见 05_PRE_Risk_Issue_Register.md。
+- **Bevy**：Rust 原生、ECS（Entity-Component-System）架构的开源游戏引擎，本项目第一个 Engine Adapter 的对接目标。
+- **Engine Adapter**：连接 PRE 核心与某个外部引擎/渲染系统的独立可选 crate（如 `pre-bevy`），核心 crate 对其零依赖，架构地位与 Observation Backend 同构（数据流方向相反）。
+- **pre-bevy**：本项目的 Bevy Engine Adapter crate，唯一允许依赖 `bevy` 的 crate，详见 02_PRE_Basic_Design.md §33 与 03_PRE_Architecture_ADR.md ADR-009。
+- **LandmarkId**：跨 solver 统一的响应采样点标识，不依赖具体 solver 内部粒子/顶点索引，见 08_PRE_Detailed_Design.md §3.3；也是 `pre-bevy` 回放时 Bevy 实体与 PRE 响应数据建立映射的键。
+- **Playback（回放）**：将 `StandardPhysicalResponse` 的离散采样点，通过插值转换为连续的 Bevy 实体 `Transform` 动画的过程。

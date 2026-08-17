@@ -19,6 +19,7 @@
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版起草：25类需求 + Traceability ID 体系确立 | Claude |
 | v0.1.1 | 2026-08-17 | 按 IPA 文书标准补充文书管理表、承认栏、非机能要求グレード对齐、需求优先度与需求一览表 | Claude |
+| v0.1.2 | 2026-08-17 | 新增第29节 Bevy 引擎集成需求（PRE-BEVY-001~006），补充 NG1/系统边界澄清、AC-06、OQ-07；优先度表与需求索引同步更新 | Claude |
 
 ## 承认栏
 
@@ -50,7 +51,7 @@ PRE 的立项前提：如果把大量传统 solver 产生的「初始状态 + �
 
 ## 3. 非目标（Out of Scope，V0.1）
 
-- NG1：不实现完整游戏物理引擎（渲染、场景管理、脚本系统等）。
+- NG1：不实现完整游戏物理引擎（渲染、场景管理、脚本系统等）。**边界澄清**：为 Bevy 提供集成适配层（见第29节 PRE-BEVY-*）不违反本条——PRE 不实现渲染/场景管理/脚本系统，而是作为可选 crate 对接一个已存在的引擎（Bevy），职责仍限定在物理数据的进出，渲染/场景管理/脚本系统由 Bevy 自身负责。
 - NG2：不实现 3DGS / 4DGS 重建或渲染管线本身。
 - NG3：不自研全部 solver；FEM/Thin Shell 仅做接口与数据模型，不做高性能实现。
 - NG4：不追求第一阶段覆盖流体、燃烧、破坏、复杂接触（如自接触精细摩擦）等复杂物理。
@@ -65,6 +66,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - 输入边界：Experiment Definition（人工/程序化定义）、Observed Physical Response（未来由 Observation Backend 提供，V0.1 为 synthetic）。
 - 输出边界：Top-K/Top-M Candidate、Best Physical Explanation、Verification Report、新增/更新的 Physics Experience。
 - 不跨越的边界：不负责最终 3D 内容渲染、不负责摄像头/传感器数据采集、不负责上层业务逻辑（游戏规则、UI）。
+- Bevy 集成边界（第29节详述）：`pre-bevy` 适配层允许 Bevy 应用消费 PRE 的仿真回放与检索/验证结果，也允许从 Bevy 场景中提取 Experiment 定义；但渲染、输入、游戏逻辑、资源管理仍完全属于 Bevy 侧职责，PRE 核心（`pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`）不得引入 Bevy 依赖（对应 ADR-009）。
 
 ## 5. Stakeholder
 
@@ -185,7 +187,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 ## 19. MVP Scope
 
-见 06_PRE_MVP_Experiment_Plan.md。摘要：Rigid + XPBD(cloth/soft) + MPM(elastic) 三类 solver，10K~100K Physics Experience，V1 Signature + V1 deterministic Encoder，ANN Top-K 检索，Simulation Verification 必须实现，Parameter Refinement 提供 basic 版本，不接入 3DGS。
+见 06_PRE_MVP_Experiment_Plan.md。摘要：Rigid + XPBD(cloth/soft) + MPM(elastic) 三类 solver，10K~100K Physics Experience，V1 Signature + V1 deterministic Encoder，ANN Top-K 检索，Simulation Verification 必须实现，Parameter Refinement 提供 basic 版本，不接入 3DGS。**新增（本次修订）**：Bevy 回放适配（PRE-BEVY-002/003）纳入 MVP 范围，作为可选 crate；Bevy 场景导入 Experiment（PRE-BEVY-005）不纳入 MVP，列为 Phase 2 候选（理由见第29节）。
 
 ## 20. Acceptance Criteria
 
@@ -194,6 +196,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - AC-03：新增一种 solver 插件（在已支持的三类之外做小改动验证）不需要修改 Retrieval/Atlas 核心代码，仅需实现 SolverPlugin trait 与 Response 转换器。
 - AC-04：任意一次检索结果可通过 Observability 接口展示评分明细。
 - AC-05：至少一条 Physics Experience 完成「生成 → 验证 → 写回 Atlas → 重新检索命中」闭环。
+- AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且 `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas` 四个核心 crate 的 `Cargo.toml` 不出现 `bevy` 依赖（验证 ADR-009 的解耦是否落实，而非仅停留在文档声明）。
 
 ## 21. Risks
 
@@ -219,6 +222,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - OQ-04：跨 solver 的 Physical Signature 可比性边界在哪里（例如 MPM 颗粒材料与 XPBD 布料的「变形」是否应共享同一 deformation_vector 维度定义）？
 - OQ-05：未来真实观测数据（3DGS）合规性与噪声模型，何时启动评估？
 - OQ-06：正式的需求/设计变更申请与评审流程（变更管理）尚未定义，当前仅有改订履历表记录变更内容，缺少「谁批准变更」的流程规定；进入详细设计前建议明确最小化的变更评审机制（例如：影响 Must 级需求的变更须经 ST-05 确认）。
+- OQ-07：`pre-bevy` 应锁定哪个 Bevy 版本区间？Bevy 尚处于快速迭代阶段（ECS API、渲染管线、Schedule 机制历史上多次发生破坏性变更），若不锁定明确的兼容区间，适配层可能在 Bevy 每次大版本升级时需要重写。建议：`pre-bevy` 明确声明支持单一 Bevy 主版本，跟随 Bevy 发版单独发布 `pre-bevy` 的兼容版本，而非试图跨版本兼容（该决定不阻塞当前设计基线，留待实现阶段首次接入 Bevy 时确定具体版本号）。
 
 ## 25. Glossary
 
@@ -226,7 +230,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 ## 26. Requirement Traceability IDs 索引
 
-前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）。完整映射见 04_PRE_Traceability_Matrix.md。
+前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）、PRE-BEVY（Bevy 引擎集成，见第29节）。完整映射见 04_PRE_Traceability_Matrix.md。
 
 ## 27. 需求优先度一览表（MoSCoW：必须 M / 推奨 S / 任意 C）
 
@@ -234,14 +238,18 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 | 优先度 | 需求 ID |
 |---|---|
-| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001 |
-| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002 |
-| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002 |
+| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001, PRE-BEVY-001 |
+| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002, PRE-BEVY-002, PRE-BEVY-003, PRE-BEVY-006 |
+| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002, PRE-BEVY-004, PRE-BEVY-005 |
 
 判定说明：
 - PRE-FR-015（ObservationBackend 接口预留）标为「任意」是因为 V0.1 唯一实现是 SimulationBackend，接口本身不影响端到端闭环能否跑通，属于面向 Phase 2 的架构投资。
 - PRE-API-001/002 标为「任意」是因为 01/02 号文档均明确 MVP 以库 API + CLI 形式满足职责即可，REST 化非 MVP 验收所需（对应 PRE-API-002 原文"不锁定 schema"）。
 - PRE-DATA-004（图数据库必要性论证）标为「任意」，因为 ADR-006 的 MVP 结论已经是"不引入"，该需求的价值在于为 Phase 3 留下判断依据，而非 MVP 阶段要交付的能力。
+- PRE-BEVY-001（核心 crate 不得依赖 bevy 的解耦约束）标为「必须」——这不是 Bevy 功能本身的优先级，而是保护现有核心架构不被这次新需求污染的护栏，优先级高于 Bevy 功能能否实现。
+- PRE-BEVY-002/003（回放适配 + 时序同步）标为「推奨」：用户明确希望优先支持 Bevy，但回放能力不影响 H1~H5 核心假设的可验证性（AC-01~AC-05 不依赖 Bevy），故不升级为必须；同时也不降到任意，因为已明确排入 MVP 范围（第19节）并有 AC-06 验收。
+- PRE-BEVY-004（异步检索桥接）与 PRE-BEVY-005（场景导入 Experiment）标为「任意」：前者依赖回放能力已先稳定，后者已在第19节明确列为 Phase 2 候选。
+- PRE-BEVY-006（版本兼容声明）标为「推奨」：不声明具体版本本身不阻塞 MVP 功能，但缺少声明会在实现阶段造成返工风险（OQ-07）。
 - 若必须（M）级需求在详细设计阶段出现无法满足的情况，须立即升级为风险并触发 ST-05 决策（而非静默降级为推奨）。
 
 ## 28. IPA 标准符合性自检清单
@@ -251,10 +259,25 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 | 文书管理表（文書番号/版本/作成者/承认者） | ✅ | 见本文书首部 |
 | 改订履历 | ✅ | 见本文书首部；02～07号文档见各自首部 |
 | 承认栏（署名欄） | ✅（未承认） | 承认栏已建立，但尚无实际签署，需项目负责人后续走查 |
-| 需求一意 ID 化 | ✅ | 47 条需求，前缀分类，见第26节 |
+| 需求一意 ID 化 | ✅ | 53 条需求（含第29节 Bevy 集成需求 6 条），前缀分类，见第26节 |
 | 需求优先度 | ✅ | 见第27节 MoSCoW |
 | 非机能要求按标准品质特性分类 | ✅ | 见第8.1节 IPA 六大品质特性对照表 |
 | 前提条件・制约条件分离 | ✅ | 见第22节 Assumptions（前提）与第23节 Constraints（制约），未混同 |
-| 需求—设计—测试—验收可追溯 | ✅ | 见 04_PRE_Traceability_Matrix.md，47/47 ID 全覆盖（已自审修复 PRE-API-002 遗漏） |
+| 需求—设计—测试—验收可追溯 | ✅ | 见 04_PRE_Traceability_Matrix.md（v0.1.2 起纳入 PRE-BEVY-*，47+6=53/53 ID 全覆盖） |
 | 用语集独立成册 | ✅ | 见 07_PRE_Glossary.md |
 | 变更管理流程 | ⚠️ 部分 | 已有改订履历表，但尚未定义正式变更申请/评审流程（记为 Open Question OQ-06，见第24节补充） |
+
+## 29. Engine Integration Requirements（Bevy 引擎集成需求）
+
+**背景**：用户明确希望 PRE 优先支持 [Bevy](https://bevy.org/)（Rust 原生、ECS 架构的开源游戏引擎）集成。PRE 核心 Runtime 已用 Rust 编写（约束 C-01），Bevy 是 Rust 生态中最主流的 ECS 引擎，选它作为第一个 Engine Adapter 目标符合技术栈一致性，且不违反 NG1（见第3节边界澄清）——PRE 不因此变成游戏引擎，而是新增一个可选的、单向/双向数据桥接层。
+
+**设计立场（与 ADR-004 同构）**：正如 3DGS 被限定为 Observation Backend 的一种实现而不允许核心耦合（ADR-004），Bevy 集成必须被限定为独立的 Engine Adapter crate（`pre-bevy`），核心 crate（`pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine`）不得依赖 Bevy。理由相同：Bevy 本身也在快速演进（OQ-07），若核心数据模型绑定 Bevy 的 ECS 组件/资源类型，Bevy 每次破坏性升级都会波及核心。此立场记为 ADR-009，详见 03_PRE_Architecture_ADR.md。
+
+- **PRE-BEVY-001**：`pre-core`、`pre-solver-*`、`pre-retrieval`、`pre-atlas`、`pre-verify`、`pre-refine` 六个核心 crate 的 `Cargo.toml` 不得出现 `bevy` 直接或传递依赖；`pre-bevy` 是唯一允许依赖 Bevy 的 crate，且必须通过 Cargo feature 或独立 workspace member 的方式保证不启用 `pre-bevy` 时整个核心系统可正常编译运行。
+- **PRE-BEVY-002**：`pre-bevy` 必须提供一个 Bevy `Plugin`，能够将一条已生成/检索到的 `PhysicsExperience` 的 `StandardPhysicalResponse` 回放为 Bevy 场景中对应实体的 `Transform` 时间序列动画（按 §3.3 定义的 `LandmarkId` 与 Bevy 实体建立映射）。
+- **PRE-BEVY-003**：由于 PRE 仿真按固定 `dt`/`substeps` 产生离散采样点，而 Bevy 应用通常以可变帧率渲染，`pre-bevy` 必须在采样点之间做插值（至少线性插值），不得要求 Bevy 应用的帧率与 PRE 采样率对齐。
+- **PRE-BEVY-004**：`pre-bevy` 应提供从 Bevy 系统内发起检索/验证请求（调用 `pre-retrieval`/`pre-verify`）的桥接方式，且由于检索/验证可能耗时超过一帧，桥接必须是非阻塞的（如通过 Bevy 的异步任务机制或独立线程 + 消息通道），不得阻塞 Bevy 主 Schedule。
+- **PRE-BEVY-005**（Phase 2 候选，不纳入 MVP）：`pre-bevy` 可提供从 Bevy 场景（携带约定 marker 组件的实体集合）提取 `InitialState`/`BoundaryConditions` 以构造 `ExperimentDefinition` 的能力，实现"在 Bevy 编辑器中搭场景、直接生成 PRE 实验"的工作流。不纳入 MVP 的理由：该方向需要额外设计 Bevy 组件 ↔ PRE 物理概念的双向映射规范，工作量与不确定性显著高于回放方向，且不影响 H1~H5 假设验证（回放方向已足以支撑可视化调试与结果展示）。
+- **PRE-BEVY-006**：`pre-bevy` 必须在其 crate 文档中明确声明所支持的 Bevy 版本（单一主版本，而非兼容区间，理由见 OQ-07），并随 Bevy 发版独立发布匹配的 `pre-bevy` 版本。
+
+对应验收标准：AC-06（第20节）。

@@ -15,6 +15,7 @@
 |---|---|---|
 | v0.1 | 2026-08-17 | 初版：ADR-001～ADR-008 |
 | v0.1.1 | 2026-08-17 | 补充文书管理表 |
+| v0.1.2 | 2026-08-17 | 新增 ADR-009：Bevy 是 Engine Adapter 而非核心依赖 |
 
 ---
 
@@ -113,3 +114,24 @@
 ## ADR-008（合并说明）: 图数据库暂缓引入
 
 见 ADR-006 后半部分，不单独重复展开。
+
+---
+
+## ADR-009: Why Bevy is an Engine Adapter, not a Core Dependency?
+
+**状态**：Accepted
+
+**背景**：用户要求 PRE 优先支持 Bevy（Rust 原生 ECS 游戏引擎）集成，用于回放仿真结果、未来可能双向对接场景数据。核心问题：Bevy 依赖应该渗透进 `pre-core`/`pre-solver-*`/`pre-retrieval` 等核心 crate，还是被限定在一个独立的适配层？
+
+**决策**：新增 `pre-bevy` crate 作为唯一允许依赖 `bevy` 的组件；`pre-core` 及其余全部核心 crate 不得直接或传递依赖 `bevy`。`pre-bevy` 单向依赖 `pre-core`（读取核心数据类型），核心不反向依赖 `pre-bevy`。
+
+**理由**：
+1. **与 ADR-004（3DGS 是 Observation Backend）同构的风险**：Bevy 是一个独立演进、迭代速度快、historically 有多次破坏性 API 变更（ECS 存储模型、渲染管线、Schedule 机制均经历过大改）的外部项目。若核心数据结构（如 `StandardPhysicalResponse`）直接使用 Bevy 类型（如 `bevy::Transform`），Bevy 每次主版本升级都会强制核心跟着改动或锁死在旧版本——这与四层分离模型（ADR-003）保护核心免受外部表示变化影响的初衷直接冲突。
+2. **PRE 的核心价值与渲染引擎无关**：PRE 的价值在于物理响应的检索与验证能力，这个能力不应该要求下游使用者引入一个完整游戏引擎作为依赖。保持核心 crate 的 `bevy`-free，意味着 PRE 可以被嵌入到任何 Rust 项目（CLI 工具、Web 服务、其它引擎的适配层）而不被迫拖入 Bevy 的整个依赖树（渲染后端、窗口系统、音频等）。
+3. **不违反 NG1**：适配层不实现渲染/场景管理/脚本系统，只做数据搬运（`StandardPhysicalResponse` → `Transform` 时间序列；未来可选地 Bevy 场景 → `InitialState`），真正的引擎能力仍完全来自 Bevy 本身，PRE 没有"变成"游戏引擎。
+
+**后果**：
+- 不使用 `pre-bevy`（或未来其它引擎适配层）的用户，其构建产物中不包含 Bevy 的任何代码/依赖，编译时间与二进制体积不受影响。
+- 新增一个"跨 crate 边界的数据搬运层"，意味着 `pre-bevy` 需要独立维护自己的类型转换代码（`LandmarkId` ↔ Bevy `Entity`，`Vec3`(PRE) ↔ `Vec3`(Bevy/glam) 等），属于可接受的工程成本，且这类转换代码天然是可单元测试的边界代码。
+- `pre-bevy` 的版本演进与 Bevy 主版本绑定（见 01号文档 OQ-07），需要单独的发布节奏，不与核心 crate 的版本号统一管理。
+- 若未来出现第二个 Engine Adapter（如 Godot-rust、Unity FFI 绑定等），应遵循同一模式新增独立 crate，而不是把多个引擎的类型揉进核心或揉进 `pre-bevy` 本身。

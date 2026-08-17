@@ -7,7 +7,7 @@
 | 文书编号 | PRE-DOC-02 |
 | 文书名称 | Physical Retrieval Engine 基本设计书 |
 | 版本 | v0.1 |
-| 状态 | Draft — 基于 01号文档 v0.1.1 需求基线编制，尚未经承认 |
+| 状态 | Draft — 基于 01号文档 v0.1.2 需求基线编制，尚未经承认 |
 | 输入基线 | 01_PRE_Requirements.md（需求变更后须重新走查本文书是否受影响） |
 | 关联文书 | 03（ADR，决策理由）、04（追踪矩阵）、05（自审发现的 ISS 已回填至相应章节） |
 
@@ -17,6 +17,7 @@
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：32章节架构设计 | Claude |
 | v0.1.1 | 2026-08-17 | 补充文书管理表、承认栏；按自审结果（05号文档 ISS-006/009）在 §13/§26 补充参数不可辨识暴露机制与召回不足监控说明 | Claude |
+| v0.1.2 | 2026-08-17 | 响应 01号文档 v0.1.2 新增的 Bevy 集成需求（PRE-BEVY-001~006）：§4 追加 `pre-bevy` crate，新增 §33 Engine Integration Architecture | Claude |
 
 ## 承认栏
 
@@ -100,9 +101,10 @@ pre-verify      # 重仿真 + 误差计算 + CandidateScore
 pre-refine      # optimizer 插件（local search / CMA-ES）
 pre-gen         # dataset generator + sampler
 pre-cli         # CLI/命令入口
+pre-bevy        # 可选 Bevy 引擎适配层（见 §33），依赖 bevy + pre-core，其余核心 crate 不依赖它
 ```
 
-依赖方向单向：`pre-solver-*` 与 `pre-signature/pre-encoder/pre-retrieval` 互不依赖具体实现，仅通过 `pre-core` 的 trait 交互（对应 PRE-FR-003）。
+依赖方向单向：`pre-solver-*` 与 `pre-signature/pre-encoder/pre-retrieval` 互不依赖具体实现，仅通过 `pre-core` 的 trait 交互（对应 PRE-FR-003）。`pre-bevy` 是唯一允许依赖 `bevy` 的 crate，且只能被应用层（Bevy App）依赖，不得被 `pre-core` 之外的任何核心 crate 反向依赖（对应 PRE-BEVY-001, ADR-009）。
 
 ## 5. Runtime Architecture
 
@@ -421,4 +423,79 @@ MVP：单机命令行工具/库，无服务化部署。CI 中跑单元测试 + �
 
 ## 32. ADR List
 
-见 03_PRE_Architecture_ADR.md：ADR-001~ADR-006（含新增 ADR-007：Post-filter vs Pre-filter；ADR-008：图数据库暂缓引入）。
+见 03_PRE_Architecture_ADR.md：ADR-001~ADR-006（含新增 ADR-007：Post-filter vs Pre-filter；ADR-008：图数据库暂缓引入；ADR-009：Bevy 是 Engine Adapter 而非核心依赖）。
+
+## 33. Engine Integration Architecture（Bevy Adapter）
+
+### 33.1 定位与依赖方向
+
+`pre-bevy` 是本项目第一个 Engine Adapter，架构地位与 §15 的 `ObservationBackend` 同构：都是"核心之外的可插拔适配层"，区别在于数据流方向相反——`ObservationBackend` 是外部数据流入核心（Observation → PRE），`pre-bevy` 主方向是核心数据流出到外部引擎（PRE → Bevy 渲染），同时预留一个未来的反向通道（Bevy 场景 → PRE Experiment，PRE-BEVY-005，Phase 2）。
+
+```
+        pre-core (PhysicsExperience, StandardPhysicalResponse, ...)
+              ▲                                    │
+              │ (trait-only, 不依赖 bevy)              │ (回放数据只读消费)
+              │                                    ▼
+        pre-solver-* / pre-retrieval          pre-bevy (依赖 bevy + pre-core)
+        pre-verify / pre-atlas                      │
+                                                     ▼
+                                              Bevy App（渲染/输入/游戏逻辑）
+```
+
+依赖方向单向：`pre-bevy` 依赖 `pre-core`（读取 `PhysicsExperience`/`StandardPhysicalResponse` 类型）与可选的 `pre-retrieval`/`pre-verify`（用于 PRE-BEVY-004 的异步查询桥接），但 `pre-core` 及其余核心 crate 对 `pre-bevy` 零感知、零依赖（PRE-BEVY-001, ADR-009）。
+
+### 33.2 回放（Playback）设计
+
+```rust
+// pre-bevy 提供的 Bevy 组件与资源
+#[derive(Component)]
+struct PreLandmark { landmark_id: LandmarkId, experience_id: ExperienceId }
+
+#[derive(Resource)]
+struct PrePlaybackState {
+    response: StandardPhysicalResponse,   // 只读引用/克隆，来自已加载的 PhysicsExperience
+    playback_time: f64,                   // Bevy 侧维护的回放时钟，独立于 PRE 的仿真时钟
+    speed: f64,
+}
+
+fn pre_playback_system(
+    time: Res<Time>,
+    mut playback: ResMut<PrePlaybackState>,
+    mut query: Query<(&PreLandmark, &mut Transform)>,
+) {
+    playback.playback_time += time.delta_seconds_f64() * playback.speed;
+    for (landmark, mut transform) in &mut query {
+        let pos = interpolate_position(&playback.response, landmark.landmark_id, playback.playback_time); // 线性插值，PRE-BEVY-003
+        transform.translation = pos.into();
+    }
+}
+```
+
+`interpolate_position()` 在 `response.sample_times` 中定位 `playback_time` 落在的区间，对相邻两个采样点的 `position` 做线性插值；采样点数不足（如仅 1 个）时退化为常量输出，不panic。
+
+### 33.3 异步查询桥接设计（PRE-BEVY-004）
+
+检索/验证耗时可能达到秒级（仿真验证涉及重新仿真），不能在 Bevy 的同步 System 中直接调用。采用「请求资源 + 后台任务 + 轮询结果资源」模式：
+
+```rust
+#[derive(Resource, Default)]
+struct PreQueryRequests(Vec<PendingQuery>);   // Bevy 侧写入，pre-bevy 后台任务消费
+
+#[derive(Resource, Default)]
+struct PreQueryResults(HashMap<QueryId, CandidateExplanation>);  // 后台任务写入，Bevy 侧系统读取
+
+// 后台任务（Bevy 的 AsyncComputeTaskPool 或独立 std::thread + channel，二选一，实现阶段确定）
+// 调用 pre-retrieval::search() + pre-verify::verify()，完成后写入 PreQueryResults
+```
+
+该模式保证 Bevy 主 Schedule 每帧只做资源读写（O(1)~O(n) 的 HashMap 操作），耗时的检索/验证逻辑完全在后台线程执行，不阻塞渲染帧率（PRE-BEVY-004）。
+
+### 33.4 版本兼容策略
+
+`pre-bevy` 的 `Cargo.toml` 对 `bevy` 依赖使用精确的单一主版本号（如 `bevy = "0.X"` 而非宽泛的 range），并在 crate 文档首行声明支持的 Bevy 版本；Bevy 发布新主版本时，`pre-bevy` 发布对应的新主版本（不追求同一 `pre-bevy` 版本跨多个 Bevy 主版本兼容）。理由与决策记录见 03号文档 ADR-009 与 01号文档 OQ-07。
+
+### 33.5 MVP 范围内的验收方式
+
+对应 01号文档 AC-06：提供一个最小 Bevy 示例应用（`examples/pre-bevy-playback` 或等价位置，具体路径留实现阶段确定），加载一条已生成的 `PhysicsExperience`，回放为实体动画；CI 中以 `cargo tree` 或等价工具检查 `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas` 四个 crate 的依赖树不包含 `bevy`，作为 PRE-BEVY-001 的自动化验证手段（而非仅靠人工代码评审）。
+
+对应需求：PRE-BEVY-001~006。

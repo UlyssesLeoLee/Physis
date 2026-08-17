@@ -12,15 +12,15 @@ PRE 的目标不是制作一个传统物理引擎，而是构建一个**可计�
 
 | 编号 | 文档 | 概要 |
 |---|---|---|
-| 01 | [PRE_Requirements](docs/01_PRE_Requirements.md) | 需求定义书。项目背景/目标/非目标、系统边界、Stakeholder、Use Cases，47 条带唯一 ID 的需求（功能/非功能/物理/检索/数据/AI-ML/接口/性能/可靠性/可重复性/安全/可观测性），MVP 范围、验收标准、风险/假设/约束/未决问题、需求优先度（MoSCoW）与 IPA 非机能要求グレード对照表。 |
-| 02 | [PRE_Basic_Design](docs/02_PRE_Basic_Design.md) | 基本设计书。架构总览与 Context/Container/Component 图，Solver 插件化架构，Raw State → Standard Response → Signature → Embedding 四层分离模型，Multi-Vector 检索与融合、Physics Atlas 存储架构、仿真验证与参数优化流水线、CPU→GPU 演进路径、MVP 架构与后续演进策略。 |
-| 03 | [PRE_Architecture_ADR](docs/03_PRE_Architecture_ADR.md) | 架构决策记录（ADR-001～ADR-008）：为何以响应而非材料标签为索引对象、为何检索只生成候选、为何标准响应与 solver 解耦、为何 3DGS 只是 Observation Backend、Multi-Vector 取舍、存储选型（含图数据库暂缓引入）、post-filter vs pre-filter 等关键决策的理由与后果。 |
-| 04 | [PRE_Traceability_Matrix](docs/04_PRE_Traceability_Matrix.md) | 需求—设计—测试—验收追溯矩阵，47/47 需求 ID 全覆盖，可按 ID 反查对应架构组件、设计章节、测试方式与验收标准。 |
-| 05 | [PRE_Risk_Issue_Register](docs/05_PRE_Risk_Issue_Register.md) | 风险登记簿（R-01～R-10）与架构自审问题登记（ISS-001～ISS-010），标注严重度、影响、证据与建议，关键项（如参数不可辨识暴露、检索召回监控、验证窗口切分）已回填至基本设计书正文。 |
+| 01 | [PRE_Requirements](docs/01_PRE_Requirements.md) | 需求定义书。项目背景/目标/非目标、系统边界、Stakeholder、Use Cases，53 条带唯一 ID 的需求（功能/非功能/物理/检索/数据/AI-ML/接口/性能/可靠性/可重复性/安全/可观测性/**Bevy 引擎集成**），MVP 范围、验收标准、风险/假设/约束/未决问题、需求优先度（MoSCoW）与 IPA 非机能要求グレード对照表。 |
+| 02 | [PRE_Basic_Design](docs/02_PRE_Basic_Design.md) | 基本设计书。架构总览与 Context/Container/Component 图，Solver 插件化架构，Raw State → Standard Response → Signature → Embedding 四层分离模型，Multi-Vector 检索与融合、Physics Atlas 存储架构、仿真验证与参数优化流水线、CPU→GPU 演进路径、**Bevy 引擎适配架构（§33）**、MVP 架构与后续演进策略。 |
+| 03 | [PRE_Architecture_ADR](docs/03_PRE_Architecture_ADR.md) | 架构决策记录（ADR-001～ADR-009）：为何以响应而非材料标签为索引对象、为何检索只生成候选、为何标准响应与 solver 解耦、为何 3DGS 只是 Observation Backend、Multi-Vector 取舍、存储选型（含图数据库暂缓引入）、post-filter vs pre-filter、**为何 Bevy 是独立 Engine Adapter 而非核心依赖**等关键决策的理由与后果。 |
+| 04 | [PRE_Traceability_Matrix](docs/04_PRE_Traceability_Matrix.md) | 需求—设计—测试—验收追溯矩阵，53/53 需求 ID 全覆盖，可按 ID 反查对应架构组件、设计章节、测试方式与验收标准。 |
+| 05 | [PRE_Risk_Issue_Register](docs/05_PRE_Risk_Issue_Register.md) | 风险登记簿（R-01～R-11）与架构自审问题登记（ISS-001～ISS-011），标注严重度、影响、证据与建议，关键项（如参数不可辨识暴露、检索召回监控、验证窗口切分、Bevy 版本演进风险）已回填至基本设计书正文或如实登记为待观察项。 |
 | 06 | [PRE_MVP_Experiment_Plan](docs/06_PRE_MVP_Experiment_Plan.md) | MVP 假设验证实验计划（H1～H5）：相似响应是否在 embedding 空间中更近、跨 solver 检索是否有效、ANN 是否显著降低搜索成本、检索+验证是否优于单独检索、噪声鲁棒性；含性能基准目标。 |
 | 07 | [PRE_Glossary](docs/07_PRE_Glossary.md) | 项目术语表。 |
-| 08 | [PRE_Detailed_Design](docs/08_PRE_Detailed_Design.md) | 详细设计书。逐 crate 展开 02 号文档的架构：核心数据结构完整字段定义、SolverPlugin trait 与 Rigid/XPBD/MPM 各 solver 的内部算法（积分方法、约束求解、to_standard_response 映射规则）、特征提取与 Encoder 算法细节、SQLite/HNSW/Blob 存储 schema、检索融合公式、验证流水线（含窗口切分与参数不可辨识检测算法）、局部搜索优化器、数据集生成器、错误码一览与三条核心处理路径的完整时序。 |
-| 09 | [PRE_Test_Case_List](docs/09_PRE_Test_Case_List.md) | 测试用例一览。对应 08 号文档各模块的 TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/E2E 十类用例，每条含前置条件、输入、期望输出与需求/设计出处，供实现阶段直接转化为自动化测试；不含 H1～H5 假设验证实验（见 06 号文档）。 |
+| 08 | [PRE_Detailed_Design](docs/08_PRE_Detailed_Design.md) | 详细设计书。逐 crate 展开 02 号文档的架构：核心数据结构完整字段定义、SolverPlugin trait 与 Rigid/XPBD/MPM 各 solver 的内部算法（积分方法、约束求解、to_standard_response 映射规则）、特征提取与 Encoder 算法细节、SQLite/HNSW/Blob 存储 schema、检索融合公式、验证流水线（含窗口切分与参数不可辨识检测算法）、局部搜索优化器、数据集生成器、**`pre-bevy` 引擎适配层详细设计（组件/资源类型、插值算法、System 调度、异步查询桥接）**、错误码一览与三条核心处理路径的完整时序。 |
+| 09 | [PRE_Test_Case_List](docs/09_PRE_Test_Case_List.md) | 测试用例一览。对应 08 号文档各模块的 TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/**BEVY**/E2E 十一类用例，每条含前置条件、输入、期望输出与需求/设计出处，供实现阶段直接转化为自动化测试；不含 H1～H5 假设验证实验（见 06 号文档）。 |
 
 ## 核心设计原则
 
