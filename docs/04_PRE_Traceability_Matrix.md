@@ -39,7 +39,8 @@ Requirement → Architecture Component → Design Section → Test → Acceptanc
 | PRE-ML-001 | pre-encoder | §10, §9 | encoder V1 确定性回归测试 | AC-01 |
 | PRE-ML-002 | pre-encoder | §10 | 回退路径（signature直查）测试 | — |
 | PRE-ML-003 | pre-atlas, pre-encoder | §23 Versioning | 多版本embedding隔离测试 | — |
-| PRE-API-001/002 | pre-cli | §19 API Architecture | CLI smoke test | — |
+| PRE-API-001 | pre-cli | §19 API Architecture | CLI smoke test | — |
+| PRE-API-002 | pre-cli | §19 API Architecture | N/A（决策类：V0.1 不锁定 REST schema） | — |
 | PRE-PERF-001 | pre-solver-*, pre-gen | §14 (需求), 06号Benchmark | 单条Experience生成耗时基准 | 06号文档 |
 | PRE-PERF-002 | pre-gen | §20 Scheduling Architecture | 并行生成吞吐测试 | — |
 | PRE-REL-001 | pre-solver-*, pre-core | §22 Error Handling | NaN/Inf检测单元测试 | — |
