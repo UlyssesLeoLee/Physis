@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-09 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.4 |
 | 状态 | Draft |
-| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.1） |
+| 输入基线 | 08_PRE_Detailed_Design.md（v0.1.3） |
 | 说明 | 本文书是 IPA 详細設計書惯例中「テストケース一覧」的落实：为每个需要验证的行为给出用例 ID、前置条件、输入、期望输出、对应需求/设计出处，供实现阶段直接转化为自动化测试。本文书不包含 H1~H5 假设验证实验（见 06 号文档），仅覆盖单元/集成级测试用例。 |
 | Mock 支持 | 部分用例适合使用 10~12 号文档定义的 `pre-testkit`（Mock 项目）加速执行、精确构造边界情形；具体哪些 testkit 组件对应哪些用例，见 12_PRE_Testkit_Detailed_Design.md §8 映射表，本文书不重复标注每一行以避免双份维护漂移。是否使用 mock 与是否需要真实层集成测试兜底，遵循 11_PRE_Testkit_Basic_Design.md §2 的双层测试策略。 |
 
@@ -18,12 +18,14 @@
 | v0.1 | 2026-08-17 | 初版：TC-CORE / TC-SOLVER / TC-SIG / TC-ENC / TC-RET / TC-VER / TC-REF / TC-GEN / TC-ATLAS / TC-E2E 十类用例 |
 | v0.1.1 | 2026-08-17 | 新增 TC-BEVY 用例类，对应 08号文档 §18 `pre-bevy` 详细设计 |
 | v0.1.2 | 2026-08-17 | 新增"Mock 支持"说明，指向新增的 10~12 号文档（`pre-testkit` 需求/基本设计/详细设计） |
+| v0.1.3 | 2026-08-17 | TC-BEVY-001 改为从 cargo metadata 动态枚举 workspace 成员，避免硬编码名单导致新增 crate 逃逸检查 |
+| v0.1.4 | 2026-08-17 | 原 TC-BEVY 一类拆分重编为 TC-ENG（中立契约）/ TC-BEVY / TC-GODOT / TC-CONF（跨适配层一致性）/ TC-GPU / TC-EMB 六类，对应 08号文档 v0.1.3 的分层重写 |
 
 ---
 
 ## 用例编号规则
 
-`TC-<模块前缀>-<三位序号>`。模块前缀对应 08 号文档章节：CORE(§2) / SOLVER(§3-6) / SIG(§7) / ENC(§8) / ATLAS(§9) / RET(§10) / VER(§11) / REF(§12) / GEN(§13) / BEVY(§18) / E2E(跨模块)。
+`TC-<模块前缀>-<三位序号>`。模块前缀对应 08 号文档章节：CORE(§2) / SOLVER(§3-6) / SIG(§7) / ENC(§8) / ATLAS(§9) / RET(§10) / VER(§11) / REF(§12) / GEN(§13) / ENG(§18) / BEVY(§19) / GODOT(§20) / CONF(§18.4 套件) / GPU(§22) / EMB(§21, 02号§35) / E2E(跨模块)。
 
 ---
 
@@ -113,20 +115,67 @@
 | TC-GEN-002 | 批量生成任务中部分样本触发数值发散 | 运行批量生成 | 发散样本不写入 Atlas，但被完整记录进 `GenerationFailureLog`（含参数与原因） | ISS-008, 08§13.2 |
 | TC-GEN-003 | 多核环境 | 并行运行 N 个独立生成任务 | 各任务结果与单独串行运行结果一致（无共享状态引发的数据竞争） | PRE-PERF-002 |
 
-## TC-BEVY：Bevy 引擎适配层
+## TC-ENG：宿主中立契约（`pre-engine-api`）
 
 | ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
 |---|---|---|---|---|
-| TC-BEVY-001 | `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine` 六个 crate 已构建 | 运行 `cargo tree -p <每个核心 crate>` | 依赖树输出中不出现 `bevy` | PRE-BEVY-001, 08§18.1, AC-06 |
-| TC-BEVY-002 | 未启用 `pre-bevy` 的 workspace 构建 | `cargo build --workspace --exclude pre-bevy` | 构建成功，不拉取/编译 bevy 及其依赖 | PRE-BEVY-001 |
-| TC-BEVY-003 | 一条完整 `StandardPhysicalResponse`，`sample_times = [0.0, 1.0, 2.0]` | `interpolate_position(response, landmark, t=0.5)` | 返回 `t=0.0` 与 `t=1.0` 两帧 position 的线性插值结果（alpha=0.5） | PRE-BEVY-003, 08§18.3 |
-| TC-BEVY-004 | 同上 response | `interpolate_position(response, landmark, t=-1.0)` 与 `t=5.0` | 分别钳制返回首帧与末帧 position，不 panic、不外推 | 08§18.3（Bracket::Before/After） |
-| TC-BEVY-005 | `sample_times` 仅含 1 个采样点 | `interpolate_position(...)` | 返回该唯一采样点的 position（退化情形） | PRE-BEVY-003, 08§18.3（Bracket::SinglePoint） |
-| TC-BEVY-006 | 一个最小 Bevy `App`，注册 `PrePlugin`，加载一条 Experience | 推进若干虚拟帧（`app.update()` 循环），每帧改变 `Time` | 各 `PreLandmark` 实体的 `Transform.translation` 按预期插值序列变化 | PRE-BEVY-002, 08§18.4, AC-06 |
-| TC-BEVY-007 | 非循环模式的 `PrePlaybackState`，推进帧直至超过 `response.duration` | 检查 `PrePlaybackFinished` 事件 | 事件被触发且仅触发一次（不重复触发） | 08§18.2 |
-| TC-BEVY-008 | 已注册 `query_bridge` feature 的 `PrePlugin`，写入一个 `PreQueryRequests` 条目 | 推进多帧，同时人为让查询任务耗时明显长于单帧预算 | 单帧 `app.update()` 墙钟耗时不随查询任务耗时增长（即查询在后台线程完成，不阻塞主 Schedule） | PRE-BEVY-004, 08§18.5 |
-| TC-BEVY-009 | 查询任务已完成 | 下一帧 `pre_query_poll_system` 执行 | 对应结果出现在 `PreQueryResults`，且该条目从待处理列表移除 | 08§18.5 |
-| TC-BEVY-010 | `pre-bevy` crate 文档 | 检查 crate 顶层文档 | 明确声明所支持的单一 Bevy 主版本号 | PRE-BEVY-006, 08§18.1 |
+| TC-ENG-001 | workspace 全部成员已构建 | 从 `cargo metadata` 动态枚举成员，排除各适配层 crate 后逐个 `cargo tree -p` | 均不出现任何宿主 SDK（`bevy`/`godot`/`pyo3`）；新增 crate 自动纳入检查（不依赖硬编码名单） | PRE-ENG-002, 02号§33.8, AC-06 |
+| TC-ENG-002 | 不启用任何适配层 feature | `cargo build --workspace --exclude pre-bevy --exclude pre-godot` | 构建成功，不拉取任何宿主 SDK | PRE-ENG-002 |
+| TC-ENG-003 | `sample_times = [0.0, 1.0, 2.0]` | `PlaybackCursor::sample(landmark, t=0.5)` | 首尾两帧的线性插值结果（alpha=0.5） | PRE-ENG-004, 08§18.2 |
+| TC-ENG-004 | 同上 | `sample(t=-1.0)` 与 `sample(t=5.0)` | 分别钳制返回首帧/末帧，不外推、不 panic | 08§18.2（Before/After） |
+| TC-ENG-005 | `sample_times` 仅 1 个采样点 | `sample(...)` | 返回该唯一采样点 | PRE-ENG-004, 08§18.2（SinglePoint） |
+| TC-ENG-006 | `sample_times` 为空 | `sample(...)` | 返回 `PlaybackError::EmptyResponse`，不 panic | 08§18.2（Empty） |
+| TC-ENG-007 | 传入不属于该 response 的 landmark | `sample(...)` | 返回 `PlaybackError::UnknownLandmark`（**非 panic**——Tier 2/3 下 panic 不得跨边界） | PRE-EMB-004, 08§18.2 |
+| TC-ENG-008 | `SpatialConvention::PRE_CANONICAL` | 对已知变换调用 `convert()` | 输出等于输入（恒等换算） | PRE-ENG-006, 08§18.1 |
+| TC-ENG-009 | `SpatialConvention::UNREAL`（左手系 + Z-up + ×100） | 对已知变换调用 `convert()` | 手性翻转、轴置换、缩放 100 倍均正确——**本用例是换算路径真正通畅的唯一证据**，不可省略（Bevy/Godot 换算近似恒等，无法暴露该路径缺陷） | PRE-ENG-006, ADR-011, 08§18.4 |
+| TC-ENG-010 | `SpatialConvention::UNITY`（左手系 Y-up） | 同上 | 仅手性翻转，无轴置换与缩放 | PRE-ENG-006 |
+| TC-ENG-011 | 已提交一个耗时明显超过一帧的查询 | 反复调用 `QuerySession::poll()` | 完成前返回 `Running`，完成后返回 `Done(...)`；`poll()` 本身始终立即返回（非阻塞） | PRE-ENG-005, 08§18.3 |
+| TC-ENG-012 | 查询进行中 | 调用 `cancel()` 后 `poll()` | 会话终止，不再返回 `Done`，且不泄漏后台任务 | 08§18.3 |
+| TC-ENG-013 | `pre-engine-api` 的公开类型集合 | 静态检查：契约层公开 API 中是否出现无法跨 C ABI 表达的类型 | `LandmarkTransform` 等传输类型均为 POD（数组/标量），无泛型/trait 对象/带载荷枚举——保证 Tier 2 将来可接入 | PRE-ENG-009, 08§18.1, 08§21.3 |
+
+## TC-BEVY：Tier 1 适配层（Bevy）
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-BEVY-001 | 最小 Bevy `App` 注册 `PrePlugin`，加载一条 Experience | 推进若干虚拟帧（`app.update()`，每帧推进 `Time`） | 各 `PreLandmark` 实体的 `Transform.translation` 按 `PlaybackCursor` 的预期序列变化 | PRE-ENG-101, 08§19, AC-06 |
+| TC-BEVY-002 | 非循环模式，推进帧数超过 `response.duration` | 检查播放结束事件 | 事件触发且仅触发一次 | PRE-ENG-101, 08§19 |
+| TC-BEVY-003 | 启用 `query_bridge`，提交一个耗时远超单帧的查询 | 推进多帧 | 单帧 `app.update()` 墙钟耗时不随查询耗时增长（查询在 `AsyncComputeTaskPool` 中执行，不阻塞主 Schedule） | PRE-ENG-005, PRE-EMB-002, 08§19 |
+| TC-BEVY-004 | `pre-bevy` crate 文档 | 检查顶层文档 | 明确声明所支持的单一 Bevy 主版本 | PRE-ENG-007, 08§19 |
+
+## TC-GODOT：Tier 1 适配层（Godot）
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-GODOT-001 | Godot 测试场景含 `PrePlaybackNode` 及绑定的子 `Node3D` | 推进若干 `_process` 周期 | 子节点 `Transform3D.origin` 按预期序列变化 | PRE-ENG-201, 08§20 |
+| TC-GODOT-002 | 节点尚未进入场景树 | 在构造时刻检查 `bindings` | 绑定在 `ready()` 中建立而非构造时（构造时子节点不可用） | 08§20（Godot 特有约束 2） |
+| TC-GODOT-003 | 提交一个耗时远超单帧的查询 | 推进多帧 | `_process` 不被阻塞；结果经 `call_deferred` 在主线程写入，未从工作线程直接操作场景树 | PRE-ENG-005, 08§20（Godot 特有约束 1） |
+| TC-GODOT-004 | `pre-godot` crate 文档 | 检查顶层文档 | 明确声明所支持的单一 Godot 主版本 | PRE-ENG-007 |
+
+## TC-CONF：跨适配层一致性套件（PRE-ENG-008）
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-CONF-001 | 同一条黄金响应数据 | 分别经 `pre-bevy` 与 `pre-godot` 回放并采样 | 两者变换序列在容差内一致——**这是验证中立契约是否真的中立的唯一实证手段**；若不一致，说明本应中立的逻辑事实上泄漏进了某个适配层 | PRE-ENG-008, AC-07, 02号§33.7 |
+| TC-CONF-002 | 同一条黄金响应数据 | 适配层输出 vs `conformance_reference()` 参考实现 | 在容差内一致 | PRE-ENG-008, 08§18.4 |
+| TC-CONF-003 | 新增任一适配层时 | 运行同一套件 | 无需为该适配层定义新的验收口径即可判定通过/失败 | PRE-ENG-008 |
+
+## TC-GPU：GPU 后端（MVP 不实现，用例为实现后生效）
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-GPU-001 | MVP 阶段（GPU 未实现） | 检查 `PreContextDesc` 结构定义 | `gpu: GpuDeviceSource` 字段存在（即使恒为 `Disabled`）——验证 ADR-012 的架构预留是否落实 | PRE-GPU-002, ADR-012, 08§22.1 |
+| TC-GPU-002 | 无可用 GPU 的环境 | 以 `CreateOwn` 构造上下文 | 自动回退 CPU 路径并记录明确原因，不失败退出 | PRE-GPU-005, 08§22.3 |
+| TC-GPU-003 | GPU 实现后 | 同一 solver 分别跑 CPU reference 与 GPU | 数值在配置容差内对齐 | PRE-GPU-003, PRE-PHY-002 |
+| TC-GPU-004 | `pre-solver-*` 源码 | 静态检查/lint | 不出现任何 `wgpu`/Vulkan/D3D 专有类型（仅调用 `pre-gpu` 抽象） | PRE-GPU-001, 08§22.2 |
+
+## TC-EMB：可嵌入性
+
+| ID | 前置条件 | 输入 | 期望输出 | 需求/设计出处 |
+|---|---|---|---|---|
+| TC-EMB-001 | 单进程 | 创建两个独立 `PreContext` 并各自加载不同 Atlas | 两者互不干扰（验证无全局可变状态） | PRE-EMB-001, 02号§35 |
+| TC-EMB-002 | 提交一个长耗时操作 | 从调用线程观察 | 调用立即返回，工作在后台推进，可轮询——调用线程不被阻塞 | PRE-EMB-002 |
+| TC-EMB-003 | 配置线程上限为 N | 运行并行任务 | 实际创建线程数不超过 N | PRE-EMB-003 |
+| TC-EMB-004 | Tier 2/3 实现后；构造一个会 panic 的内部条件 | 经 C ABI / PyO3 调用 | panic 被 `catch_unwind` 捕获并转换为错误码/Python 异常，**不跨越语言边界** | PRE-EMB-004, 08§21.1, 08§21.2 |
 
 ## TC-E2E：端到端集成
 

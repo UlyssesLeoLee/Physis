@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-11 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
 | 输入基线 | 10_PRE_Testkit_Requirements.md |
 | 关联文书 | 12（Testkit 详细设计书）、08（核心详细设计，本文书引用其 trait 定义）、09（测试用例一览） |
@@ -15,6 +15,7 @@
 | 版本 | 日期 | 变更内容 | 作成者 |
 |---|---|---|---|
 | v0.1 | 2026-08-17 | 初版：架构定位、双层测试策略、组件设计、依赖方向 | Claude |
+| v0.1.1 | 2026-08-17 | 新增 §3.7 跨适配层一致性套件（PRE-ENG-008）的归属与实现要点；`MockBevyHarness` 泛化说明 | Claude |
 
 ## 承认栏
 
@@ -104,7 +105,7 @@ FixtureBuilder::experience()
 
 以静态数据文件形式（格式留 12 号文档确定，如 RON 或 JSON）随 `pre-testkit` crate 一起提交入库，运行时由 `GoldenDataset::load()` 反序列化，不在测试运行期动态生成（保证同一份数据被反复使用、任何变化都在 git diff 中可见）。
 
-### 3.5 MockBevyHarness
+### 3.5 MockHostHarness（宿主测试宿主，以 Bevy 为首个实现）
 
 封装 `bevy::app::App`，提供确定性时间推进：
 
@@ -116,7 +117,16 @@ MockBevyHarness::new()
     .assert_transform(landmark_id, expected_position, epsilon)
 ```
 
-### 3.6 近似相等断言辅助
+### 3.6 跨适配层一致性套件（PRE-ENG-008）
+
+02号文档 §33.7 规定一致性套件的实现归属 `pre-testkit`。要点：
+
+- 输入为 Golden Dataset 中的固定响应条目（§3.4），避免套件自身引入随机性。
+- 参考值来自 `pre-engine-api::conformance_reference()`（08号文档 §18.4），而非某个适配层的输出——若以某适配层为基准，该适配层自身的缺陷就会被固化为"正确答案"。
+- 必须包含**非恒等换算**用例（以 `SpatialConvention::UNREAL` 构造，无需真实 Unreal 环境）。仅测 Bevy/Godot 无法暴露换算路径缺陷，因为两者换算近似恒等（ADR-011 后果条）。
+- Tier 1 适配层可在 mock 层运行本套件；真实宿主环境下的集成仍需真实层兜底（§2 双层测试策略）。
+
+### 3.7 近似相等断言辅助
 
 一组独立的、不依赖任何 mocking 框架的手写宏/函数（呼应 PRE-TK-010 的"避免重量级依赖"要求），统一 `f64`/`Vec3`/向量的容差比较。
 

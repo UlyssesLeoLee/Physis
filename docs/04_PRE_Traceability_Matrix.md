@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-04 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.4 |
 | 状态 | Draft |
-| 覆盖率 | 53/53 需求 ID 全覆盖（含 PRE-BEVY-001~006，见改订履历） |
+| 覆盖率 | 全部需求 ID 覆盖；PRE-BEVY-001~006 已废止并迁移至 PRE-ENG-*（见 01号文档 §29.5） |
 
 ## 改订履历
 
@@ -16,6 +16,8 @@
 | v0.1 | 2026-08-17 | 初版矩阵，PRE-API-001/002 合并为一行 |
 | v0.1.1 | 2026-08-17 | 自审发现合并行导致按 ID 检索遗漏，拆分为独立两行，恢复 47/47 覆盖 |
 | v0.1.2 | 2026-08-17 | 新增 PRE-BEVY-001~006 六行，覆盖率更新为 53/53 |
+| v0.1.3 | 2026-08-17 | PRE-BEVY-001 行的约束对象由固定枚举改为「除 pre-bevy 外的全部 workspace 成员」，与 01 号文档 v0.1.3 保持一致 |
+| v0.1.4 | 2026-08-17 | PRE-BEVY-* 六行废止，替换为 PRE-ENG-*（20 条）、PRE-GPU-*（5 条）、PRE-EMB-*（4 条），对应 01号文档 v0.1.4 的多宿主分层重构 |
 
 Requirement → Architecture Component → Design Section → Test → Acceptance Criterion
 
@@ -68,14 +70,37 @@ Requirement → Architecture Component → Design Section → Test → Acceptanc
 | PRE-SEC-002 | N/A（V0.1不涉及） | — | — | OQ-05 |
 | PRE-OBS-001 | pre-verify | §26 Observability | CandidateExplanation 结构测试 | AC-04 |
 | PRE-OBS-002 | pre-runtime全链路 | §26 | stage timing 记录测试 | — |
-| PRE-BEVY-001 | pre-bevy（唯一依赖方）, pre-core/pre-solver-*/pre-retrieval/pre-atlas/pre-verify/pre-refine（零依赖约束对象） | §4 Component Diagram, §33.1, ADR-009 | `cargo tree` 依赖树检查（CI 自动化） | AC-06 |
-| PRE-BEVY-002 | pre-bevy | §33.2 回放设计 | Bevy 集成测试：加载 Experience 并断言实体 Transform 随时间变化 | AC-06 |
-| PRE-BEVY-003 | pre-bevy | §33.2（插值逻辑） | 插值函数单元测试（覆盖采样点间/边界/单点退化情形） | — |
-| PRE-BEVY-004 | pre-bevy, pre-retrieval, pre-verify | §33.3 异步查询桥接 | 异步查询集成测试：断言主线程/Schedule 不被阻塞 | — |
-| PRE-BEVY-005 | pre-bevy（Phase 2，未实现） | §33.1（预留方向说明） | N/A（Phase 2 候选，非 MVP 交付物） | — |
-| PRE-BEVY-006 | pre-bevy | §33.4 版本兼容策略 | crate 文档版本声明检查（人工/CI lint） | — |
+
+| PRE-ENG-001 | 全部适配层 crate | §33.1 分层模型 | 分层归属评审（设计类） | — |
+| PRE-ENG-002 | 全部核心 crate（约束对象）, 各适配层（唯一豁免） | §4, §33.1, §33.8, ADR-009/010 | `cargo tree` 依赖树检查，从 cargo metadata 动态枚举（CI 自动化） | AC-06 |
+| PRE-ENG-003 | pre-engine-api | §33.2 中立契约 | 中立性验证：契约层不含任何宿主 SDK 类型 | AC-07 |
+| PRE-ENG-004 | pre-engine-api（PlaybackCursor） | §33.2 | 插值单元测试（含四类边界情形） | AC-06, AC-07 |
+| PRE-ENG-005 | pre-engine-api（QuerySession）, 各适配层 | §33.2, §35 | 非阻塞性测试：宿主主循环不被阻塞 | — |
+| PRE-ENG-006 | pre-engine-api（SpatialConvention） | §33.3, ADR-011 | 坐标/单位换算测试（含非恒等换算用例） | AC-07 |
+| PRE-ENG-007 | 各适配层 | §33.4, §33.6 | crate 文档版本声明检查 | — |
+| PRE-ENG-008 | pre-testkit（套件实现）, 各适配层（被测对象） | §33.7 | 一致性套件：同一黄金数据跨适配层输出一致 | AC-07 |
+| PRE-ENG-009 | pre-ffi（MVP 仅设计） | §33.5 | N/A（MVP 不实现；约束反向体现于 §33.2 契约设计评审） | — |
+| PRE-ENG-010 | pre-python（MVP 仅设计） | §33.6 | N/A（MVP 不实现） | — |
+| PRE-ENG-011 | 各适配层（Phase 2） | §33.1（预留方向） | N/A（Phase 2） | — |
+| PRE-ENG-101 | pre-bevy | §33.4 | Bevy 集成测试：Transform 随时间变化 | AC-06, AC-07 |
+| PRE-ENG-201 | pre-godot | §33.4 | Godot 集成测试：Transform3D 随时间变化 | AC-07 |
+| PRE-ENG-301 | 预留：Unity 适配（Tier 2，未实现） | §33.5 | N/A（预留块，需求未细化） | — |
+| PRE-ENG-401 | 预留：Unreal 适配（Tier 2，未实现） | §33.5 | N/A（预留块，需求未细化） | — |
+| PRE-ENG-501 | 预留：DCC 3D 软件适配（Tier 3，未实现） | §33.6 | N/A（预留块，需求未细化） | — |
+| PRE-GPU-001 | pre-gpu（MVP 不实现） | §34.2 | N/A（MVP 不实现；约束为"solver 中不得出现单一图形 API 调用"，由代码评审/lint 保证） | — |
+| PRE-GPU-002 | pre-gpu, PreContext 初始化路径 | §34.3, ADR-012 | 初始化架构评审：构造函数可接收外部设备（即使恒为 None） | — |
+| PRE-GPU-003 | pre-gpu, pre-solver-* | §34.4 | GPU/CPU 数值对齐回归（GPU 实现后生效） | — |
+| PRE-GPU-004 | pre-gpu（设计预留） | §34.5 | N/A（架构约束：数据通路不得假设结果必经 CPU，由设计评审保证） | — |
+| PRE-GPU-005 | pre-gpu | §34.4 | 无 GPU 环境下的回退测试 | — |
+| PRE-EMB-001 | pre-core（PreContext） | §35 | 多实例并存测试（同进程创建多个独立 PRE 实例） | — |
+| PRE-EMB-002 | pre-core, pre-engine-api | §35, §33.2 | 长耗时操作不阻塞调用线程的测试 | — |
+| PRE-EMB-003 | pre-core | §35 | 线程数上限配置生效测试 | — |
+| PRE-EMB-004 | pre-ffi, pre-python | §35, §33.5 | panic 边界捕获测试（MVP 仅设计，实现后生效） | — |
 
 ## 需求覆盖检查
 
-- 所有 26 类需求前缀（含新增 PRE-BEVY）均至少映射到一个架构组件与设计章节：已核对，无遗漏。
-- 未映射到具体 Acceptance Criterion 的需求（如 PRE-DATA-004, PRE-SEC-002, PRE-BEVY-003/004/005/006）均为决策类/延后类/支撑性需求，已在 Open Questions 或 ADR 中登记，不视为覆盖缺口——PRE-BEVY 系列的端到端验收统一由 AC-06 承担（PRE-BEVY-001/002 直接对应，其余为支撑该验收的内部机制）。
+- 所有需求前缀（含新增 PRE-ENG / PRE-GPU / PRE-EMB）均至少映射到一个架构组件与设计章节：已核对，无遗漏。
+- 未映射到具体 Acceptance Criterion 的需求均为决策类/延后类/支撑性需求，已在 Open Questions 或 ADR 中登记，不视为覆盖缺口：
+- PRE-ENG 系列的端到端验收由 AC-06（依赖隔离）与 AC-07（跨适配层一致性）承担；Tier 2/3 与预留块（PRE-ENG-009/010/011/301/401/501）MVP 不实现，其"验证方式"为设计评审而非测试。
+- PRE-GPU 系列 MVP 整体不实现；其中 PRE-GPU-002（设备注入）虽不实现，但**初始化架构预留**属于必须在 MVP 代码中体现的设计约束，验证方式为架构评审（ADR-012 已记录理由）。
+- PRE-EMB-004（panic 不跨边界）随 Tier 2/3 实现后才可测试，MVP 阶段为设计约束。

@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-07 |
-| 版本 | v0.1.1 |
+| 版本 | v0.1.2 |
 | 状态 | Draft |
 
 ## 改订履历
@@ -14,6 +14,7 @@
 |---|---|---|
 | v0.1 | 2026-08-17 | 初版术语表 |
 | v0.1.1 | 2026-08-17 | 新增 Bevy 集成相关术语（Engine Adapter / pre-bevy / Landmark / Playback） |
+| v0.1.2 | 2026-08-17 | 随多宿主分层重构更新：新增 Tier 0~3、pre-engine-api、SpatialConvention、Tier 2/3 相关术语；Engine Adapter 词条泛化为 Host Adapter |
 
 ---
 
@@ -43,7 +44,13 @@
 - **ADR (Architecture Decision Record)**：架构决策记录，见 03_PRE_Architecture_ADR.md。
 - **ISS-XXX**：架构自审登记的具体问题条目，见 05_PRE_Risk_Issue_Register.md。
 - **Bevy**：Rust 原生、ECS（Entity-Component-System）架构的开源游戏引擎，本项目第一个 Engine Adapter 的对接目标。
-- **Engine Adapter**：连接 PRE 核心与某个外部引擎/渲染系统的独立可选 crate（如 `pre-bevy`），核心 crate 对其零依赖，架构地位与 Observation Backend 同构（数据流方向相反）。
-- **pre-bevy**：本项目的 Bevy Engine Adapter crate，唯一允许依赖 `bevy` 的 crate，详见 02_PRE_Basic_Design.md §33 与 03_PRE_Architecture_ADR.md ADR-009。
+- **Host（宿主）**：嵌入并驱动 PRE 的外部程序——游戏引擎（Bevy/Godot/Unity/Unreal）、3D 软件（Blender/Maya/Houdini）、或任何 Rust/C/C++/C#/Python 应用。PRE 不拥有主循环，由宿主驱动。
+- **Host Adapter（宿主适配层，旧称 Engine Adapter）**：连接 PRE 核心与某个宿主的独立可选 crate/包，核心 crate 对其零依赖，架构地位与 Observation Backend 同构（数据流方向相反）。
+- **Tier 0~3**：按**接入机制**划分的宿主集成分层——Tier 0 Rust 库 API、Tier 1 Rust 链接适配层（Bevy/Godot）、Tier 2 C ABI（Unity/Unreal）、Tier 3 Python 绑定（DCC 3D 软件）。分层依据是 ABI 与语言生态，不是宿主品牌（ADR-010）。
+- **pre-engine-api**：宿主中立的契约 crate，承载全部宿主共用逻辑（回放插值 `PlaybackCursor`、查询会话 `QuerySession`、中立变换类型、坐标单位换算），不依赖任何宿主 SDK。适配层只做类型映射与调度接入。
+- **SpatialConvention（空间约定）**：以数据描述某宿主的坐标手性、上轴、前向轴与长度单位，用于与 PRE 规范约定（右手系 / Y-up / -Z 前向 / SI 米）之间换算。Unity 为左手系，Unreal 为左手系 Z-up 且默认厘米（ADR-011）。
+- **pre-ffi / pre-python**：Tier 2 的 C ABI 边界（cdylib + 头文件）与 Tier 3 的 PyO3 绑定；MVP 阶段仅设计边界约束，不实现。
+- **设备注入（GPU Device Injection）**：PRE 接受宿主已有的 GPU 设备/队列并在其上计算，而非自建独占设备。两种形态的初始化架构不兼容，故即使 MVP 不实现 GPU 也必须预留（PRE-GPU-002, ADR-012）。
+- **pre-bevy / pre-godot**：Tier 1 宿主适配层 crate，分别是唯一允许依赖 `bevy` / `godot` 的位置，详见 02_PRE_Basic_Design.md §33.4 与 ADR-009/ADR-010。
 - **LandmarkId**：跨 solver 统一的响应采样点标识，不依赖具体 solver 内部粒子/顶点索引，见 08_PRE_Detailed_Design.md §3.3；也是 `pre-bevy` 回放时 Bevy 实体与 PRE 响应数据建立映射的键。
 - **Playback（回放）**：将 `StandardPhysicalResponse` 的离散采样点，通过插值转换为连续的 Bevy 实体 `Transform` 动画的过程。

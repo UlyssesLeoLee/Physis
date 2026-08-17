@@ -6,11 +6,11 @@
 |---|---|
 | 文书编号 | PRE-DOC-01 |
 | 文书名称 | Physical Retrieval Engine 需求定义书 |
-| 版本 | v0.1.2 |
+| 版本 | v0.1.4 |
 | 状态 | Draft — Baseline for Basic Design（尚未经 Stakeholder 正式承认） |
 | 作成者 | PRE 架构设计团队（本轮由 Claude 代笔起草） |
 | 承认者 | 未定（待 ST-05 项目负责人指定） |
-| 关联文书 | 02（基本设计书）、03（ADR）、04（追踪矩阵）、05（风险登记簿）、06（MVP实验计划）、07（用语集） |
+| 关联文书 | 02（基本设计书）、03（ADR）、04（追踪矩阵）、05（风险登记簿）、06（MVP实验计划）、07（用语集）、08/09（详细设计・测试用例）、10~12（Testkit） |
 | 适用范围 | PRE V0.1（MVP）；Phase 2 以降需另行制定需求追补文书 |
 
 ## 改订履历
@@ -20,6 +20,8 @@
 | v0.1 | 2026-08-17 | 初版起草：25类需求 + Traceability ID 体系确立 | Claude |
 | v0.1.1 | 2026-08-17 | 按 IPA 文书标准补充文书管理表、承认栏、非机能要求グレード对齐、需求优先度与需求一览表 | Claude |
 | v0.1.2 | 2026-08-17 | 新增第29节 Bevy 引擎集成需求（PRE-BEVY-001~006），补充 NG1/系统边界澄清、AC-06、OQ-07；优先度表与需求索引同步更新 | Claude |
+| v0.1.3 | 2026-08-17 | 交叉审查修正：PRE-BEVY-001 与 AC-06 原先枚举的 crate 清单不一致（6 个 vs 4 个）且均遗漏 pre-signature/pre-encoder/pre-gen/pre-cli 等成员，统一改为「除 pre-bevy 外的全部 workspace 成员」以消除枚举漂移 | Claude |
+| v0.1.4 | 2026-08-17 | 重大重构：PRE 定位明确为「可嵌入的底层 Rust 运行时」。第29节由 Bevy 专属重构为多宿主分层集成（Tier 0~3，覆盖 Bevy/Godot/Unity/Unreal/DCC 3D 软件），PRE-BEVY-001~006 废止并迁移至 PRE-ENG-*（对照表见 29.5）；新增第30节 GPU 后端需求（PRE-GPU-001~005，Vulkan/D3D 可移植性与宿主设备注入）、第31节可嵌入性需求（PRE-EMB-001~004）；新增 AC-07、OQ-08~10 | Claude |
 
 ## 承认栏
 
@@ -51,7 +53,7 @@ PRE 的立项前提：如果把大量传统 solver 产生的「初始状态 + �
 
 ## 3. 非目标（Out of Scope，V0.1）
 
-- NG1：不实现完整游戏物理引擎（渲染、场景管理、脚本系统等）。**边界澄清**：为 Bevy 提供集成适配层（见第29节 PRE-BEVY-*）不违反本条——PRE 不实现渲染/场景管理/脚本系统，而是作为可选 crate 对接一个已存在的引擎（Bevy），职责仍限定在物理数据的进出，渲染/场景管理/脚本系统由 Bevy 自身负责。
+- NG1：不实现完整游戏物理引擎或 3D 内容创作软件（渲染、场景管理、脚本系统、编辑器 UI 等）。**边界澄清**：为 Bevy/Godot/Unity/Unreal 及 DCC 3D 软件提供宿主集成适配层（见第29节 PRE-ENG-*）不违反本条——PRE 是被宿主嵌入的底层运行时，职责限定在物理数据的进出与计算，渲染/场景管理/脚本/编辑器由宿主自身负责。
 - NG2：不实现 3DGS / 4DGS 重建或渲染管线本身。
 - NG3：不自研全部 solver；FEM/Thin Shell 仅做接口与数据模型，不做高性能实现。
 - NG4：不追求第一阶段覆盖流体、燃烧、破坏、复杂接触（如自接触精细摩擦）等复杂物理。
@@ -61,12 +63,13 @@ PRE 的立项前提：如果把大量传统 solver 产生的「初始状态 + �
 
 ## 4. 系统边界
 
-PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如下：
+PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用程序），独立于任何具体渲染引擎、游戏引擎或 3D 软件，由宿主驱动。边界如下：
 
 - 输入边界：Experiment Definition（人工/程序化定义）、Observed Physical Response（未来由 Observation Backend 提供，V0.1 为 synthetic）。
 - 输出边界：Top-K/Top-M Candidate、Best Physical Explanation、Verification Report、新增/更新的 Physics Experience。
 - 不跨越的边界：不负责最终 3D 内容渲染、不负责摄像头/传感器数据采集、不负责上层业务逻辑（游戏规则、UI）。
-- Bevy 集成边界（第29节详述）：`pre-bevy` 适配层允许 Bevy 应用消费 PRE 的仿真回放与检索/验证结果，也允许从 Bevy 场景中提取 Experiment 定义；但渲染、输入、游戏逻辑、资源管理仍完全属于 Bevy 侧职责，PRE 核心（`pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`）不得引入 Bevy 依赖（对应 ADR-009）。
+- 宿主集成边界（第29节详述）：适配层允许宿主（游戏引擎 Bevy/Godot/Unity/Unreal，Python 宿主的 3D 软件）消费 PRE 的仿真回放与检索/验证结果，未来亦可反向提取 Experiment 定义（PRE-ENG-011，Phase 2）；但渲染、输入、游戏逻辑、编辑器 UI、资源管理仍完全属于宿主侧职责。核心 crate 不得依赖任何宿主 SDK（PRE-ENG-002，对应 ADR-009/ADR-010）。
+- GPU 边界（第30节详述）：PRE 使用 GPU 仅用于**计算**（solver 加速），不承担宿主的渲染职责；与宿主的 GPU 设备共享（PRE-GPU-002）与零拷贝互操作（PRE-GPU-004）属于数据通路优化，不改变"PRE 不做渲染"这一边界。
 
 ## 5. Stakeholder
 
@@ -187,7 +190,8 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 ## 19. MVP Scope
 
-见 06_PRE_MVP_Experiment_Plan.md。摘要：Rigid + XPBD(cloth/soft) + MPM(elastic) 三类 solver，10K~100K Physics Experience，V1 Signature + V1 deterministic Encoder，ANN Top-K 检索，Simulation Verification 必须实现，Parameter Refinement 提供 basic 版本，不接入 3DGS。**新增（本次修订）**：Bevy 回放适配（PRE-BEVY-002/003）纳入 MVP 范围，作为可选 crate；Bevy 场景导入 Experiment（PRE-BEVY-005）不纳入 MVP，列为 Phase 2 候选（理由见第29节）。
+见 06_PRE_MVP_Experiment_Plan.md。摘要：Rigid + XPBD(cloth/soft) + MPM(elastic) 三类 solver，10K~100K Physics Experience，V1 Signature + V1 deterministic Encoder，ANN Top-K 检索，Simulation Verification 必须实现，Parameter Refinement 提供 basic 版本，不接入 3DGS。**宿主集成的 MVP 范围（v0.1.4 修订）**：`pre-engine-api` 中立契约（PRE-ENG-003/004/005/006）与 Bevy 适配层（PRE-ENG-101）纳入 MVP；Godot 适配层（PRE-ENG-201）排在 Bevy 之后、**不作为 H1~H5 假设验证的前置条件**；Tier 2（Unity/Unreal，经 `pre-ffi`）与 Tier 3（Python/DCC）在 MVP 阶段**仅做接口设计与边界约束，不实现**；场景导入方向（PRE-ENG-011）为 Phase 2。GPU 后端（第30节 PRE-GPU-*）整体不在 MVP 实现范围内，仅要求架构不排斥（尤其 PRE-GPU-002 的设备注入必须在初始化架构中预留）。
+> 范围警示：本节涉及四类宿主与一套 GPU 后端，是全文档中最容易发生范围失控的区域。判定基线不变——凡不影响 H1~H5 可验证性的，一律不进 MVP（对应约束 C-03 的 8~12 周周期，风险见 05号文档 R-13）。
 
 ## 20. Acceptance Criteria
 
@@ -196,7 +200,8 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - AC-03：新增一种 solver 插件（在已支持的三类之外做小改动验证）不需要修改 Retrieval/Atlas 核心代码，仅需实现 SolverPlugin trait 与 Response 转换器。
 - AC-04：任意一次检索结果可通过 Observability 接口展示评分明细。
 - AC-05：至少一条 Physics Experience 完成「生成 → 验证 → 写回 Atlas → 重新检索命中」闭环。
-- AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且 `pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas` 四个核心 crate 的 `Cargo.toml` 不出现 `bevy` 依赖（验证 ADR-009 的解耦是否落实，而非仅停留在文档声明）。
+- AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且**除各适配层 crate 自身外的全部 workspace 成员**的依赖树均不出现任何宿主 SDK（`bevy`/`godot`/`pyo3`）——验证 ADR-009/ADR-010 的解耦是否落实，而非仅停留在文档声明；范围定义与 PRE-ENG-002 一致。
+- AC-07：至少两个不同 Tier 1 宿主适配层（Bevy 与 Godot）针对同一条黄金响应数据，经各自坐标/单位换算后产出的变换序列在容差内一致（PRE-ENG-008 一致性套件）——这是验证「宿主中立契约（PRE-ENG-003）是否真的中立」的唯一实证手段；若两者不一致，说明通用逻辑仍有一部分事实上泄漏在适配层里。
 
 ## 21. Risks
 
@@ -222,7 +227,10 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 - OQ-04：跨 solver 的 Physical Signature 可比性边界在哪里（例如 MPM 颗粒材料与 XPBD 布料的「变形」是否应共享同一 deformation_vector 维度定义）？
 - OQ-05：未来真实观测数据（3DGS）合规性与噪声模型，何时启动评估？
 - OQ-06：正式的需求/设计变更申请与评审流程（变更管理）尚未定义，当前仅有改订履历表记录变更内容，缺少「谁批准变更」的流程规定；进入详细设计前建议明确最小化的变更评审机制（例如：影响 Must 级需求的变更须经 ST-05 确认）。
-- OQ-07：`pre-bevy` 应锁定哪个 Bevy 版本区间？Bevy 尚处于快速迭代阶段（ECS API、渲染管线、Schedule 机制历史上多次发生破坏性变更），若不锁定明确的兼容区间，适配层可能在 Bevy 每次大版本升级时需要重写。建议：`pre-bevy` 明确声明支持单一 Bevy 主版本，跟随 Bevy 发版单独发布 `pre-bevy` 的兼容版本，而非试图跨版本兼容（该决定不阻塞当前设计基线，留待实现阶段首次接入 Bevy 时确定具体版本号）。
+- OQ-07：各适配层应锁定宿主的哪个版本？Bevy 与 Godot 均处于快速迭代阶段（Bevy 的 ECS/Schedule、Godot 的 GDExtension API 历史上均有破坏性变更）。方针已由 PRE-ENG-007 确定为「声明单一主版本、随宿主发版独立发版」，剩余未决的仅是各宿主的具体版本号，留待实现阶段首次接入时确定。
+- OQ-08：Tier 2（`pre-ffi`）的实现时机如何判定？当前设计仅约束其边界（PRE-ENG-009），但未定义"何时开始实现"的触发条件。倾向：以出现真实的 Unity 或 Unreal 接入需求为触发，而非按时间表推进——过早实现 C ABI 会在没有真实调用方的情况下固化错误的接口形态，而 C ABI 一旦发布就难以变更。
+- OQ-09：GPU 后端的抽象层选型（`wgpu` vs 直接使用 Vulkan/D3D 绑定 vs 其它）虽已由 PRE-GPU-001 限定为"必须可移植、不得把单一图形 API 写进 solver"，但具体选型需在 GPU 工作实际启动时基于当时的生态成熟度评估。另需评估：`wgpu` 的抽象是否足以表达 PRE 所需的计算模式（如 MPM 的 P2G/G2P 需要的原子操作与工作组内存），若不足，是否需要在特定后端上开专用路径。
+- OQ-10：PRE-GPU-002 的宿主设备注入，在 `wgpu` 层面是否所有目标宿主都能提供所需的底层句柄？Bevy 使用 wgpu（可行性高），Godot/Unity/Unreal 使用各自的渲染后端，导出可共享的设备/队列句柄的可行性与代价需逐宿主评估——该评估结论可能反过来影响 PRE-GPU-004 零拷贝互操作的可达性。
 
 ## 25. Glossary
 
@@ -230,7 +238,7 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 ## 26. Requirement Traceability IDs 索引
 
-前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）、PRE-BEVY（Bevy 引擎集成，见第29节）。完整映射见 04_PRE_Traceability_Matrix.md。
+前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）、PRE-ENG（宿主集成，见第29节；按 Tier 分块编号）、PRE-GPU（GPU 后端与图形 API，见第30节）、PRE-EMB（可嵌入性，见第31节）。完整映射见 04_PRE_Traceability_Matrix.md。
 
 ## 27. 需求优先度一览表（MoSCoW：必须 M / 推奨 S / 任意 C）
 
@@ -238,18 +246,20 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 
 | 优先度 | 需求 ID |
 |---|---|
-| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001, PRE-BEVY-001 |
-| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002, PRE-BEVY-002, PRE-BEVY-003, PRE-BEVY-006 |
-| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002, PRE-BEVY-004, PRE-BEVY-005 |
+| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001, PRE-ENG-002, PRE-EMB-001, PRE-EMB-002 |
+| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002, PRE-ENG-001, PRE-ENG-003, PRE-ENG-004, PRE-ENG-005, PRE-ENG-006, PRE-ENG-007, PRE-ENG-008, PRE-ENG-101, PRE-EMB-003, PRE-EMB-004, PRE-GPU-003, PRE-GPU-005 |
+| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002, PRE-ENG-009, PRE-ENG-010, PRE-ENG-011, PRE-ENG-201, PRE-ENG-301, PRE-ENG-401, PRE-ENG-501, PRE-GPU-001, PRE-GPU-002, PRE-GPU-004 |
 
 判定说明：
 - PRE-FR-015（ObservationBackend 接口预留）标为「任意」是因为 V0.1 唯一实现是 SimulationBackend，接口本身不影响端到端闭环能否跑通，属于面向 Phase 2 的架构投资。
 - PRE-API-001/002 标为「任意」是因为 01/02 号文档均明确 MVP 以库 API + CLI 形式满足职责即可，REST 化非 MVP 验收所需（对应 PRE-API-002 原文"不锁定 schema"）。
 - PRE-DATA-004（图数据库必要性论证）标为「任意」，因为 ADR-006 的 MVP 结论已经是"不引入"，该需求的价值在于为 Phase 3 留下判断依据，而非 MVP 阶段要交付的能力。
-- PRE-BEVY-001（核心 crate 不得依赖 bevy 的解耦约束）标为「必须」——这不是 Bevy 功能本身的优先级，而是保护现有核心架构不被这次新需求污染的护栏，优先级高于 Bevy 功能能否实现。
-- PRE-BEVY-002/003（回放适配 + 时序同步）标为「推奨」：用户明确希望优先支持 Bevy，但回放能力不影响 H1~H5 核心假设的可验证性（AC-01~AC-05 不依赖 Bevy），故不升级为必须；同时也不降到任意，因为已明确排入 MVP 范围（第19节）并有 AC-06 验收。
-- PRE-BEVY-004（异步检索桥接）与 PRE-BEVY-005（场景导入 Experiment）标为「任意」：前者依赖回放能力已先稳定，后者已在第19节明确列为 Phase 2 候选。
-- PRE-BEVY-006（版本兼容声明）标为「推奨」：不声明具体版本本身不阻塞 MVP 功能，但缺少声明会在实现阶段造成返工风险（OQ-07）。
+- PRE-ENG-002（核心 crate 不得依赖任何宿主 SDK）与 PRE-EMB-001/002（无全局状态、不占用主循环）标为「必须」——它们不是宿主集成功能本身的优先级，而是保护核心架构的护栏，且属于「早期不遵守、后期无法补救」的一类，优先级高于任何具体宿主能否接入。
+- PRE-ENG-003~008 与 PRE-ENG-101（中立契约 + Bevy 适配）标为「推奨」：用户明确希望优先支持这些宿主，但回放能力不影响 H1~H5 核心假设的可验证性（AC-01~AC-05 不依赖任何宿主），故不升级为必须；同时也不降到任意，因为已排入 MVP 范围（第19节）并有 AC-06/AC-07 验收。
+- PRE-ENG-201（Godot）标为「任意」而非「推奨」：用户要求支持 Godot，但它与 Bevy 同属 Tier 1、共享同一套中立契约，其真正的架构价值（证明契约确实中立）已由 AC-07 承载。若 MVP 周期紧张，先交付 Bevy + 完整中立契约、Godot 紧随其后，是比两个适配层都做一半更合理的取舍。
+- PRE-ENG-009/010/301/401/501（Tier 2/3 与 Unity/Unreal/DCC）标为「任意」：MVP 阶段只做设计与边界约束，不实现。
+- PRE-GPU-001/002/004 标为「任意」：GPU 后端整体不在 MVP 实现；但 PRE-GPU-002（宿主设备注入）虽不实现，其**初始化架构预留**是硬性设计要求，见第30节说明。
+- PRE-GPU-003/005（CPU 为真值来源、无 GPU 时回退）标为「推奨」：它们约束的是"一旦做 GPU 就必须遵守"的规则，成本低且防止后期返工。
 - 若必须（M）级需求在详细设计阶段出现无法满足的情况，须立即升级为风险并触发 ST-05 决策（而非静默降级为推奨）。
 
 ## 28. IPA 标准符合性自检清单
@@ -259,25 +269,91 @@ PRE 是一个**独立于渲染引擎和游戏引擎**的后端系统，边界如
 | 文书管理表（文書番号/版本/作成者/承认者） | ✅ | 见本文书首部 |
 | 改订履历 | ✅ | 见本文书首部；02～07号文档见各自首部 |
 | 承认栏（署名欄） | ✅（未承认） | 承认栏已建立，但尚无实际签署，需项目负责人后续走查 |
-| 需求一意 ID 化 | ✅ | 53 条需求（含第29节 Bevy 集成需求 6 条），前缀分类，见第26节 |
+| 需求一意 ID 化 | ✅ | 前缀分类，见第26节；PRE-BEVY-* 已于 v0.1.4 废止并迁移至 PRE-ENG-*（对照表见第29.5节） |
 | 需求优先度 | ✅ | 见第27节 MoSCoW |
 | 非机能要求按标准品质特性分类 | ✅ | 见第8.1节 IPA 六大品质特性对照表 |
 | 前提条件・制约条件分离 | ✅ | 见第22节 Assumptions（前提）与第23节 Constraints（制约），未混同 |
-| 需求—设计—测试—验收可追溯 | ✅ | 见 04_PRE_Traceability_Matrix.md（v0.1.2 起纳入 PRE-BEVY-*，47+6=53/53 ID 全覆盖） |
+| 需求—设计—测试—验收可追溯 | ✅ | 见 04_PRE_Traceability_Matrix.md，全部需求 ID 覆盖（v0.1.4 起纳入 PRE-ENG-*/PRE-GPU-*/PRE-EMB-*） |
 | 用语集独立成册 | ✅ | 见 07_PRE_Glossary.md |
 | 变更管理流程 | ⚠️ 部分 | 已有改订履历表，但尚未定义正式变更申请/评审流程（记为 Open Question OQ-06，见第24节补充） |
 
-## 29. Engine Integration Requirements（Bevy 引擎集成需求）
+## 29. Host Integration Requirements（宿主集成需求：游戏引擎与 3D 软件）
 
-**背景**：用户明确希望 PRE 优先支持 [Bevy](https://bevy.org/)（Rust 原生、ECS 架构的开源游戏引擎）集成。PRE 核心 Runtime 已用 Rust 编写（约束 C-01），Bevy 是 Rust 生态中最主流的 ECS 引擎，选它作为第一个 Engine Adapter 目标符合技术栈一致性，且不违反 NG1（见第3节边界澄清）——PRE 不因此变成游戏引擎，而是新增一个可选的、单向/双向数据桥接层。
+**定位（本节的前提，也是对第4节系统边界的强化）**：PRE 是一个**可嵌入的底层 Rust 运行时**（embeddable low-level runtime），不是应用程序，也不是游戏引擎。宿主（游戏引擎、DCC 3D 软件、离线工具、研究脚本）驱动 PRE，而非相反。这一定位决定了后续全部集成设计：PRE 不拥有主循环、不假设自己独占进程、不持有全局可变状态。
 
-**设计立场（与 ADR-004 同构）**：正如 3DGS 被限定为 Observation Backend 的一种实现而不允许核心耦合（ADR-004），Bevy 集成必须被限定为独立的 Engine Adapter crate（`pre-bevy`），核心 crate（`pre-core`/`pre-solver-*`/`pre-retrieval`/`pre-atlas`/`pre-verify`/`pre-refine`）不得依赖 Bevy。理由相同：Bevy 本身也在快速演进（OQ-07），若核心数据模型绑定 Bevy 的 ECS 组件/资源类型，Bevy 每次破坏性升级都会波及核心。此立场记为 ADR-009，详见 03_PRE_Architecture_ADR.md。
+**为何需要分层的集成模型**：目标宿主横跨四类语言/ABI 生态——Bevy（Rust）、Godot（Rust via GDExtension）、Unity（C#）、Unreal（C++）、以及 Blender/Maya/Houdini 等 3D 软件（主要为 Python）。它们无法用同一种接入机制覆盖：Rust 宿主可以直接消费 Rust 类型与 trait，而 C#/C++/Python 宿主必须经过稳定的 C ABI 或语言绑定，且不能跨边界传递 Rust 泛型、trait 对象、带载荷枚举或 `Result`。若不在设计阶段就区分这两类，最可能的失败模式是：先按 Rust 宿主写好接口，等到接入 Unity 时发现整套 API 无法跨 FFI 边界表达，被迫重做一层。
 
-- **PRE-BEVY-001**：`pre-core`、`pre-solver-*`、`pre-retrieval`、`pre-atlas`、`pre-verify`、`pre-refine` 六个核心 crate 的 `Cargo.toml` 不得出现 `bevy` 直接或传递依赖；`pre-bevy` 是唯一允许依赖 Bevy 的 crate，且必须通过 Cargo feature 或独立 workspace member 的方式保证不启用 `pre-bevy` 时整个核心系统可正常编译运行。
-- **PRE-BEVY-002**：`pre-bevy` 必须提供一个 Bevy `Plugin`，能够将一条已生成/检索到的 `PhysicsExperience` 的 `StandardPhysicalResponse` 回放为 Bevy 场景中对应实体的 `Transform` 时间序列动画（按 §3.3 定义的 `LandmarkId` 与 Bevy 实体建立映射）。
-- **PRE-BEVY-003**：由于 PRE 仿真按固定 `dt`/`substeps` 产生离散采样点，而 Bevy 应用通常以可变帧率渲染，`pre-bevy` 必须在采样点之间做插值（至少线性插值），不得要求 Bevy 应用的帧率与 PRE 采样率对齐。
-- **PRE-BEVY-004**：`pre-bevy` 应提供从 Bevy 系统内发起检索/验证请求（调用 `pre-retrieval`/`pre-verify`）的桥接方式，且由于检索/验证可能耗时超过一帧，桥接必须是非阻塞的（如通过 Bevy 的异步任务机制或独立线程 + 消息通道），不得阻塞 Bevy 主 Schedule。
-- **PRE-BEVY-005**（Phase 2 候选，不纳入 MVP）：`pre-bevy` 可提供从 Bevy 场景（携带约定 marker 组件的实体集合）提取 `InitialState`/`BoundaryConditions` 以构造 `ExperimentDefinition` 的能力，实现"在 Bevy 编辑器中搭场景、直接生成 PRE 实验"的工作流。不纳入 MVP 的理由：该方向需要额外设计 Bevy 组件 ↔ PRE 物理概念的双向映射规范，工作量与不确定性显著高于回放方向，且不影响 H1~H5 假设验证（回放方向已足以支撑可视化调试与结果展示）。
-- **PRE-BEVY-006**：`pre-bevy` 必须在其 crate 文档中明确声明所支持的 Bevy 版本（单一主版本，而非兼容区间，理由见 OQ-07），并随 Bevy 发版独立发布匹配的 `pre-bevy` 版本。
+### 29.1 集成分层模型
 
-对应验收标准：AC-06（第20节）。
+- **PRE-ENG-001**：宿主集成必须按**接入机制**分层，每层有明确定义的边界与约束：
+  - **Tier 0 — Rust 库 API**：PRE 的原生接口，workspace 内直接调用（研究脚本、CLI、其它 Rust 应用）。
+  - **Tier 1 — Rust 链接适配层**：宿主本身是 Rust 或提供 Rust 绑定，适配层可直接链接 `pre-core`。目标：Bevy（`pre-bevy`）、Godot（`pre-godot`，经 GDExtension 的 Rust 绑定）。
+  - **Tier 2 — C ABI 适配层**：宿主为 C/C++/C#，经 `pre-ffi`（cdylib + C 头文件）接入。目标：Unreal（C++）、Unity（C# P/Invoke）。
+  - **Tier 3 — Python 绑定**：宿主为 Python 宿主的 3D 软件（Blender/Maya/Houdini），经 `pre-python`（PyO3）接入；同时复用于约束 C-01 已允许的 ML/研究工作流。
+  层级划分依据是接入机制而非宿主知名度——同一 Tier 内的适配层共享绝大部分实现，跨 Tier 则不共享。
+
+- **PRE-ENG-002**（取代旧 PRE-BEVY-001，范围由 bevy 扩大到全部宿主 SDK）：**除各 Tier 1/2/3 适配层 crate 自身外的全部 workspace 成员**，其 `Cargo.toml` 不得出现任何宿主 SDK 的直接或传递依赖（`bevy`、`godot`、`pyo3` 等）。适配层 crate 是唯一允许依赖对应宿主 SDK 的位置，且不启用任何适配层时整个核心系统必须可正常编译运行。
+  > 与上一版本相同的理由：以「除适配层外的全部成员」而非固定枚举定义范围，避免新增 crate 时留下不被任何检查发现的缺口。
+
+- **PRE-ENG-003**：必须存在一个宿主中立的契约 crate `pre-engine-api`，承载**所有宿主共用的集成逻辑**：回放游标与采样点插值、异步查询会话状态机、中立的 `LandmarkTransform` 类型、坐标/单位换算。各适配层只允许做「中立类型 ↔ 宿主类型」的映射与宿主特有的调度接入，**不得各自实现插值或查询状态机**。
+  > 这条是本次分层设计的核心收益：四个宿主若各自实现插值，等于同一个数值 bug 有四份拷贝，且四份的边界行为（早于首帧/晚于末帧/单采样点）几乎必然不一致。
+
+### 29.2 宿主中立的能力契约
+
+- **PRE-ENG-004**（取代旧 PRE-BEVY-002/003）：必须提供回放（Playback）能力契约——将 `StandardPhysicalResponse` 的离散采样点，按 `LandmarkId` 映射为宿主场景对象的变换时间序列；由于 PRE 按固定 `dt`/`substeps` 采样而宿主以可变帧率运行，契约必须包含采样点间插值（至少线性插值），不得要求宿主帧率与 PRE 采样率对齐。插值实现位于 `pre-engine-api`（PRE-ENG-003）。
+- **PRE-ENG-005**（取代旧 PRE-BEVY-004）：必须提供非阻塞的检索/验证查询桥接契约。检索与仿真验证可能耗时远超一帧，任何 Tier 的适配层都不得在宿主主线程/主循环上同步等待结果；契约以「提交请求 → 轮询/回调取结果」的形式定义，具体调度机制由各适配层用宿主原生设施实现。
+- **PRE-ENG-006**（新增，跨引擎必须显式处理的问题）：必须定义 PRE 的**规范空间约定与单位约定**，并要求每个适配层显式声明其到宿主约定的换算：
+  - PRE 规范约定：右手系、Y 轴向上、-Z 为前方；长度单位为 SI 米。
+  - 已知差异（举例，非穷举）：Bevy 与 Godot 同为右手系 Y-up，换算接近恒等；**Unity 为左手系** Y-up；**Unreal 为左手系 Z-up 且默认长度单位为厘米**。
+  - 每个适配层必须提供可测试的换算函数，并纳入 PRE-ENG-008 的一致性测试。
+  > 若不在契约层固定规范约定，各适配层会各自"就地修正"手性与单位，最终表现为"同一条物理响应在 Unreal 里镜像了、在 Unity 里旋转方向反了、尺度差 100 倍"——且这类缺陷极难归因到某一层。
+- **PRE-ENG-007**（取代旧 PRE-BEVY-006）：每个适配层必须在其文档中声明所支持的宿主版本（单一主版本而非兼容区间），并随宿主发版独立发布匹配版本。
+- **PRE-ENG-008**（新增）：必须建立**适配层一致性测试套件**（conformance suite）：给定同一条黄金响应数据，任意适配层经其换算后产出的变换序列，必须在容差内一致。新增适配层时必须通过同一套件，不得各自定义验收口径。
+
+### 29.3 Tier 2 / Tier 3 的边界约束（设计先行，实现后置）
+
+- **PRE-ENG-009**（Tier 2 C ABI，设计阶段确定、实现随首个 Tier 2 宿主落地）：`pre-ffi` 暴露的 C ABI 必须满足：仅传递不透明句柄与 POD 结构体（不跨边界传递 Rust 泛型/trait 对象/带载荷枚举/`Result`/`String`）；错误以整型错误码返回；所有权与释放责任在头文件中显式注明；提供 ABI 版本查询入口；**每个 `extern "C"` 函数必须捕获 panic，禁止 panic 跨越 FFI 边界**（跨边界 unwind 是未定义行为）。
+- **PRE-ENG-010**（Tier 3 Python）：`pre-python` 经 PyO3 暴露，必须遵守与 Tier 2 相同的「不跨边界传递 Rust 专有类型」原则，并明确 GIL 释放策略——长耗时的检索/仿真调用必须释放 GIL，否则会阻塞宿主 3D 软件的 UI 线程。
+- **PRE-ENG-011**（取代旧 PRE-BEVY-005，Phase 2，不纳入 MVP）：反向的场景导入能力——从宿主场景提取 `InitialState`/`BoundaryConditions` 构造 `ExperimentDefinition`。不纳入 MVP 的理由不变：双向映射规范的工作量与不确定性显著高于回放方向，且不影响 H1~H5 假设验证。本条适用于全部宿主，不再是 Bevy 专属。
+
+### 29.4 各宿主适配层需求（按 Tier 分块编号，预留扩展）
+
+编号分块：`101~199` Bevy／`201~299` Godot／`301~399` Unity（预留）／`401~499` Unreal（预留）／`501~599` DCC 3D 软件（预留）。预留块表示架构已为其留位，但需求尚未细化——细化时机为该宿主实际进入实现排期。
+
+- **PRE-ENG-101**（Tier 1, Bevy）：提供 Bevy `Plugin`，将 `pre-engine-api` 的中立变换映射为 Bevy `Transform`，使用 Bevy 原生任务池实现 PRE-ENG-005 的查询桥接。
+- **PRE-ENG-201**（Tier 1, Godot）：经 Godot 4 GDExtension 的 Rust 绑定提供一个 `Node3D` 派生的回放节点，将中立变换映射为 Godot `Transform3D`，并使用 Godot 的线程/延迟调用设施实现 PRE-ENG-005 的查询桥接（不得在 `_process` 中同步等待）。
+- **PRE-ENG-301 / 401 / 501**：预留，分别对应 Unity（C#，经 Tier 2）、Unreal（C++，经 Tier 2）、Python 宿主的 3D 软件（经 Tier 3）。架构上要求：新增这些适配层时，除新增其自身 crate/包外，不得修改 `pre-core` 与 `pre-engine-api` 之外的任何核心 crate——若届时发现必须修改核心，说明 PRE-ENG-003 的中立契约设计有缺陷，应作为架构缺陷立项而非就地打补丁。
+
+### 29.5 与旧 PRE-BEVY-* 编号的迁移对照
+
+本节在 v0.1.4 由「Bevy 专属」重构为「多宿主分层」，旧编号全部废止，对照如下（旧编号不再在任何文档中使用）：
+
+| 旧编号 | 新编号 | 说明 |
+|---|---|---|
+| PRE-BEVY-001 | PRE-ENG-002 | 范围由「不依赖 bevy」扩大为「不依赖任何宿主 SDK」 |
+| PRE-BEVY-002 | PRE-ENG-004 + PRE-ENG-101 | 通用回放契约与 Bevy 特有映射分离 |
+| PRE-BEVY-003 | PRE-ENG-004 | 插值要求上提为宿主中立契约 |
+| PRE-BEVY-004 | PRE-ENG-005 + PRE-ENG-101 | 非阻塞契约与 Bevy 特有调度分离 |
+| PRE-BEVY-005 | PRE-ENG-011 | 场景导入方向适用于全部宿主 |
+| PRE-BEVY-006 | PRE-ENG-007 | 版本策略适用于全部适配层 |
+
+对应验收标准：AC-06、AC-07（第20节）。
+
+## 30. GPU Backend Requirements（GPU 后端与图形 API 兼容性）
+
+**背景**：PRE 作为底层运行时，其 solver 存在 GPU 加速需求（02号文档 §21 已规划 CPU→GPU 演进路径），且宿主（游戏引擎/3D 软件）本身通常已持有一个 GPU 设备。跨 Vulkan / Direct3D 12 / Metal 的可移植性，以及与宿主共享 GPU 设备的能力，必须在设计阶段确定，不能等 GPU 实现启动后再补——「PRE 自行创建独占设备」与「PRE 接受宿主注入设备」是两种不兼容的初始化架构，后期改造代价极高。
+
+- **PRE-GPU-001**：GPU 计算后端必须经由可移植抽象层接入（首选 `wgpu`，可同时映射到 Vulkan / Direct3D 12 / Metal），核心 solver 代码中不得出现任何单一图形 API 的专有调用。选型在详细设计阶段确认，但「不得把 Vulkan 或 D3D 的 API 直接写进 solver」这一约束本身即为需求。
+- **PRE-GPU-002**（关键的可嵌入性需求）：PRE 必须支持**由宿主注入 GPU 设备/队列**并在其上执行计算；仅当宿主未提供时才自行创建设备。理由：宿主已持有设备时，PRE 若另建一个设备，将导致显存重复占用、跨设备同步开销，以及在部分驱动上的资源共享失败。
+- **PRE-GPU-003**：CPU reference 实现始终是数值真值来源，GPU 实现必须能与之在配置容差内对齐并有自动化回归覆盖——本条是 PRE-PHY-002 在 GPU 语境下的直接延伸，不引入新原则，仅明确其适用于 GPU 后端。
+- **PRE-GPU-004**（设计预留，不纳入 MVP）：GPU 互操作/零拷贝——PRE 计算结果直接以宿主可用的 GPU 缓冲形式交付，免去 GPU→CPU→GPU 往返。该能力依赖外部内存共享机制（Vulkan external memory、D3D12 shared handle 等），复杂度与宿主耦合度均显著高于普通计算后端，因此仅要求架构上不排斥（数据通路设计不得假设结果必然经过 CPU），不要求 MVP 实现。
+- **PRE-GPU-005**：无可用 GPU 或初始化失败时，系统必须能自动回退到 CPU 路径并记录明确原因，不得直接失败退出——PRE 的核心价值（检索与验证）在纯 CPU 下必须完整可用。
+
+## 31. Embeddability Requirements（可嵌入性）
+
+这些需求约束的是 PRE 核心自身，而非适配层；它们是「PRE 是被宿主嵌入的库」这一定位的直接推论，且几乎全部属于「早期不遵守、后期无法补救」的类别。
+
+- **PRE-EMB-001**：PRE 不得依赖全局可变状态或单例；所有运行时状态必须挂在显式的上下文句柄下，允许同一进程内存在多个相互独立的 PRE 实例（宿主插件可能被多次实例化，3D 软件中尤其常见）。
+- **PRE-EMB-002**：PRE 不得假设自己拥有主循环，不得阻塞调用线程执行长耗时任务；所有长耗时操作必须提供可由宿主驱动的分步执行或后台执行 + 轮询形式。
+- **PRE-EMB-003**：PRE 的线程使用策略必须可由宿主配置（线程数上限，或复用宿主线程池）；不得在宿主不知情的情况下擅自创建大量线程——3D 软件宿主对线程与调度通常有严格约束。
+- **PRE-EMB-004**：panic 不得跨越任何外语言边界（C ABI、Python 绑定），必须在边界处捕获并转换为该语言的错误表示（与 PRE-ENG-009 呼应，此处从核心侧再次约束）。
