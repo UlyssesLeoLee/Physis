@@ -8,7 +8,7 @@ PRE 的目标不是制作一个传统物理引擎，而是构建一个**可计�
 
 ## 文档
 
-需求定义、基本设计与详细设计相关文档位于 [`docs/`](docs/) 目录，遵循 IPA（情報処理推進機構）文书惯例编写（文书管理表 / 改订履历 / 承认栏 / 需求优先度 / 追踪矩阵 / テストケース一覧）。阅读顺序建议：01 → 02 → 03 → 04 → 08 → 09，05/06/07 按需查阅。
+需求定义、基本设计与详细设计相关文档位于 [`docs/`](docs/) 目录，遵循 IPA（情報処理推進機構）文书惯例编写（文书管理表 / 改订履历 / 承认栏 / 需求优先度 / 追踪矩阵 / テストケース一覧）。阅读顺序建议：01 → 02 → 03 → 04 → 08 → 09，05/06/07 按需查阅；10～12 是自动测试用 Mock 项目（`pre-testkit`）的独立三段式文档，只服务于测试基础设施，不计入核心 53 条需求（理由见 10 号文档 §4）。
 
 | 编号 | 文档 | 概要 |
 |---|---|---|
@@ -21,6 +21,9 @@ PRE 的目标不是制作一个传统物理引擎，而是构建一个**可计�
 | 07 | [PRE_Glossary](docs/07_PRE_Glossary.md) | 项目术语表。 |
 | 08 | [PRE_Detailed_Design](docs/08_PRE_Detailed_Design.md) | 详细设计书。逐 crate 展开 02 号文档的架构：核心数据结构完整字段定义、SolverPlugin trait 与 Rigid/XPBD/MPM 各 solver 的内部算法（积分方法、约束求解、to_standard_response 映射规则）、特征提取与 Encoder 算法细节、SQLite/HNSW/Blob 存储 schema、检索融合公式、验证流水线（含窗口切分与参数不可辨识检测算法）、局部搜索优化器、数据集生成器、**`pre-bevy` 引擎适配层详细设计（组件/资源类型、插值算法、System 调度、异步查询桥接）**、错误码一览与三条核心处理路径的完整时序。 |
 | 09 | [PRE_Test_Case_List](docs/09_PRE_Test_Case_List.md) | 测试用例一览。对应 08 号文档各模块的 TC-CORE/SOLVER/SIG/ENC/ATLAS/RET/VER/REF/GEN/**BEVY**/E2E 十一类用例，每条含前置条件、输入、期望输出与需求/设计出处，供实现阶段直接转化为自动化测试；不含 H1～H5 假设验证实验（见 06 号文档）。 |
+| 10 | [PRE_Testkit_Requirements](docs/10_PRE_Testkit_Requirements.md) | **Mock 项目需求定义书**。`pre-testkit`（自动测试用 Mock/Fixture 项目）的背景、目标、非目标（不替代真实集成测试）、独立需求 ID（PRE-TK-001~010：仅限 dev-dependency、Mock SolverPlugin、内存版 Atlas、Fixture Builder、Golden Dataset、近似断言辅助、Mock Bevy Harness）与验收标准。 |
+| 11 | [PRE_Testkit_Basic_Design](docs/11_PRE_Testkit_Basic_Design.md) | **Mock 项目基本设计书**。`pre-testkit` 的依赖方向（叶子 crate，仅 dev-dependency）、双层测试策略（Mock 层验证逻辑正确性 / 真实层验证数值与集成正确性，且强制要求关键行为在真实层兜底）、六大组件设计、Golden Dataset 的确定性与版本绑定策略。 |
+| 12 | [PRE_Testkit_Detailed_Design](docs/12_PRE_Testkit_Detailed_Design.md) | **Mock 项目详细设计书**。`MockSolverPlugin`（可编程注入数值发散/仿真失败）、`InMemoryAtlas`（含 blob 读取计数器验证 metadata/blob 分离）、`FixtureBuilder`、`GoldenDataset`（RON 格式，由真实 solver 生成而非手工编造）、近似相等断言、`MockBevyHarness`（headless）的具体类型与算法，末尾附与 09 号文档测试用例的映射表。 |
 
 ## 核心设计原则
 
