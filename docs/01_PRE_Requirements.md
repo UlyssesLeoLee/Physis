@@ -6,7 +6,7 @@
 |---|---|
 | 文书编号 | PRE-DOC-01 |
 | 文书名称 | Physical Retrieval Engine 需求定义书 |
-| 版本 | v0.1 |
+| 版本 | v0.1.2 |
 | 状态 | Draft — Baseline for Basic Design（尚未经 Stakeholder 正式承认） |
 | 作成者 | PRE 架构设计团队（本轮由 Claude 代笔起草） |
 | 承认者 | 未定（待 ST-05 项目负责人指定） |

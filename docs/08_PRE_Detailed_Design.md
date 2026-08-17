@@ -6,7 +6,7 @@
 |---|---|
 | 文书编号 | PRE-DOC-08 |
 | 文书名称 | Physical Retrieval Engine 详细设计书 |
-| 版本 | v0.1 |
+| 版本 | v0.1.1 |
 | 状态 | Draft |
 | 输入基线 | 02_PRE_Basic_Design.md（v0.1.2）、03_PRE_Architecture_ADR.md（v0.1.2） |
 | 关联文书 | 04（追踪矩阵，本文书新增内容追加映射见文末）、09（测试用例一览） |
