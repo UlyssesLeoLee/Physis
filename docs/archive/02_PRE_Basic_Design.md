@@ -6,8 +6,8 @@
 |---|---|
 | 文书编号 | PRE-DOC-02 |
 | 文书名称 | Physical Retrieval Engine 基本设计书 |
-| 版本 | v0.1.4 |
-| 状态 | Draft — 基于 01号文档 v0.1.4 需求基线编制，尚未经承认 |
+| 版本 | v0.1.6 |
+| 状态 | Draft — 基于 01号文档 v0.1.6 需求基线编制，尚未经承认 |
 | 输入基线 | 01_PRE_Requirements.md（需求变更后须重新走查本文书是否受影响） |
 | 关联文书 | 03（ADR，决策理由）、04（追踪矩阵）、05（自审发现的 ISS 已回填至相应章节） |
 
@@ -20,6 +20,8 @@
 | v0.1.2 | 2026-08-17 | 响应 01号文档 v0.1.2 新增的 Bevy 集成需求（PRE-BEVY-001~006）：§4 追加 `pre-bevy` crate，新增 §33 Engine Integration Architecture | Claude |
 | v0.1.3 | 2026-08-17 | 交叉审查修正：§33.5 的 bevy 依赖检查范围由枚举 4 个 crate 改为「除 pre-bevy 外的全部 workspace 成员」，并要求检查脚本从成员列表动态枚举 | Claude |
 | v0.1.4 | 2026-08-17 | 响应 01号文档 v0.1.4：§4 追加 pre-engine-api/pre-godot/pre-ffi/pre-python/pre-gpu；§33 由 Bevy 专属重写为多宿主分层集成架构；新增 §34 GPU 后端架构、§35 可嵌入性架构 | Claude |
+| v0.1.5 | 2026-08-17 | §12 图数据库结论段落补充图论构造能力的落地方式；新增 §36 Graph Construction Architecture；ADR List 更新至 ADR-013 | Claude |
+| v0.1.6 | 2026-08-17 | 新增 §37 Plugin Kernel & Lifecycle Architecture、§38 ECS Compatibility Architecture，响应 01号文档 v0.1.6；ADR List 更新至 ADR-015 | Claude |
 
 ## 承认栏
 
@@ -89,7 +91,7 @@ MVP 只有一个部署单元：`pre-runtime`（单机 Rust 进程 + 本地/嵌�
 ## 4. Component Diagram（核心 crate 划分建议）
 
 ```
-pre-core        # PhysicsExperience, StandardPhysicalResponse, PhysicalSignature 等核心类型
+pre-core        # PhysicsExperience, StandardPhysicalResponse, PhysicalSignature 等核心类型；PluginRegistry（§37）
 pre-solver-api  # SolverPlugin trait + Response 转换 trait
 pre-solver-rigid
 pre-solver-xpbd
@@ -252,7 +254,7 @@ Atlas = 三种存储的组合视图，而非单一数据库：
 
 三者通过 `experience_id` 关联，查询 metadata/embedding 不触发 blob 读取（PRE-DATA-002）。
 
-**图数据库结论（对应 PRE-DATA-004 + ADR-006）**：V0.1 不引入图数据库。Entity/Relation/Field 结构在 MVP 规模下用 relational store 的外键/JSON字段即可表达，图查询模式（多跳遍历）尚未被 MVP 场景要求。留 Open Question，待 Phase 3（Inverse Physics 复杂约束图）重新评估。
+**图数据库结论（对应 PRE-DATA-004 + ADR-006）**：V0.1 不引入图数据库。Entity/Relation/Field 结构在 MVP 规模下用 relational store 的外键/JSON字段即可表达。**不等于图论查询能力被搁置**——图论构造需求（PRE-GRAPH-*，01号文档第32节）在关系存储之上以逻辑视图 + 递归 CTE 落地，详见 §36 与 ADR-013。跨 Experience 的多跳查询（图数据库真正的适用场景）仍留作 Phase 3 重新评估触发条件。
 
 ## 13. Simulation Verification Pipeline
 
@@ -430,7 +432,7 @@ MVP：单机命令行工具/库，无服务化部署。CI 中跑单元测试 + �
 
 ## 32. ADR List
 
-见 03_PRE_Architecture_ADR.md：ADR-001~ADR-006（含新增 ADR-007：Post-filter vs Pre-filter；ADR-008：图数据库暂缓引入；ADR-009：Bevy 是 Engine Adapter 而非核心依赖）。
+见 03_PRE_Architecture_ADR.md：ADR-001~ADR-015，含 ADR-007（Post-filter vs Pre-filter）、ADR-008（图数据库暂缓引入）、ADR-009/010（宿主分层集成）、ADR-011（空间与单位规范）、ADR-012（GPU 设备注入）、ADR-013（图论构造能力是关系存储之上的逻辑层）、ADR-014（统一插件内核而非各插件点各自为政）、ADR-015（ECS 兼容以数据形状契约而非内置 ECS 运行时实现）。
 
 ## 33. Host Integration Architecture（多宿主分层集成架构）
 
@@ -583,3 +585,187 @@ PRE 作为被宿主嵌入的库，以下四条约束几乎全部属于「早期�
 | PRE-EMB-004 panic 不跨外语言边界 | 所有 `extern "C"` 与 PyO3 入口以 `catch_unwind` 包裹并转换为该语言错误 | 跨边界 unwind 是未定义行为，表现为宿主进程崩溃且难以定位 |
 
 这些约束对 Tier 0（纯 Rust 调用）看似多余，但正是它们使得 Tier 1~3 得以在不改动核心的前提下叠加——它们约束的是核心，不是适配层。
+
+## 36. Graph Construction Architecture（图论构造架构）
+
+### 36.1 定位：逻辑视图，不是新存储
+
+Physical Graph 完全从 `pre-atlas` 已有数据派生，是查询时构造的视图，不是独立持久化的数据结构：
+
+```
+pre-atlas（既有：relational metadata + vector + blob）
+        │
+        ▼ 查询时按需构造（不预先物化整图，除非性能数据证明需要缓存）
+   GraphView {
+       nodes: Vec<GraphNode>,   // 来自 landmark 列表 + rigid body 列表 + material 区域
+       edges: Vec<GraphEdge>,   // 来自 constraint_events + contact_events + excitation（场作用）
+   }
+        │
+        ▼
+   GraphQuery（遍历 / 连通性 / 导出）
+```
+
+节点/边的来源映射（对应 PRE-GRAPH-001）：
+
+| Physical Graph 元素 | 派生自 |
+|---|---|
+| 节点：Entity | `StandardPhysicalResponse.landmarks`、Rigid solver 的刚体列表、MPM/XPBD 的材料分区 |
+| 边：Relation（Contact） | `contact_events[]` |
+| 边：Relation（Constraint/Attachment） | `constraint_events[]`、`BoundaryConditions.attachments` |
+| 边：Field（Gravity/Wind/Pressure） | `Excitation.events`（作为连接"场"伪节点与受影响实体的边） |
+
+### 36.2 遍历查询：递归 CTE，而非图数据库
+
+```sql
+-- 概念示意：给定起点节点，返回 <= max_depth 跳内可达节点（PRE-GRAPH-002）
+WITH RECURSIVE reachable(node_id, depth) AS (
+    SELECT :start_node, 0
+    UNION ALL
+    SELECT e.to_node, r.depth + 1
+    FROM graph_edges e
+    JOIN reachable r ON e.from_node = r.node_id
+    WHERE r.depth < :max_depth        -- ★ 强制深度上限（PRE-GRAPH-006）
+)
+SELECT DISTINCT node_id FROM reachable;
+```
+
+`graph_edges` 本身不是持久表，而是由 `GraphView` 在查询发起时从 `contact_events`/`constraint_events` 等既有字段现算得到的临时结果（SQLite 支持从子查询构造 CTE 的数据源）。这保证了 ADR-013 的核心主张——不新增持久化系统。
+
+### 36.3 复杂度与安全阀（PRE-GRAPH-006）
+
+| 保护措施 | 目的 |
+|---|---|
+| `max_depth` 强制参数（无默认"不限"选项） | 防止病态约束网络（如全连接的 XPBD 粒子系统）导致递归查询退化为 O(V²) 或更差 |
+| 单 Experience 范围（PRE-GRAPH-003） | 图规模上界 = 单条 Response 的 landmark 数量级（通常 < 500），而非全 Atlas 规模 |
+| 查询超时 | 复用 `pre-atlas` 既有的查询超时机制（若实现），不为图查询单独发明一套 |
+
+### 36.4 可视化导出（PRE-GRAPH-004）
+
+```rust
+trait GraphExporter {
+    fn to_mermaid(&self, graph: &GraphView) -> String;   // ```mermaid graph TD``` 代码块
+    fn to_dot(&self, graph: &GraphView) -> String;        // GraphViz DOT
+}
+```
+
+导出结果直接可嵌入 Markdown 文档或喂给 GraphViz 渲染，用于调试某条 Experience 的约束/接触拓扑——这是"图论构造能力"从内部数据结构变为可核查产物的落地点，示例见 14 号文档。
+
+### 36.5 与检索能力的边界（PRE-GRAPH-003 的架构落实）
+
+图遍历查询回答"这条 Experience 内部，哪些实体通过哪些关系相连"；向量检索（§10/§11）回答"哪些 Experience 与当前观测相似"。两者输入输出都不同，`pre-atlas` 内部图查询子模块与 `pre-retrieval` 之间没有调用依赖——避免图论能力演变为检索能力的影子实现。
+
+对应需求：PRE-GRAPH-001~006。
+
+## 37. Plugin Kernel & Lifecycle Architecture（插件内核与生命周期架构）
+
+### 37.1 统一生命周期状态机（PRE-PLUGIN-001）
+
+```
+                  register()
+                      │
+                      ▼
+                ┌──────────┐
+                │Registered│
+                └────┬─────┘
+                     │ init()
+                     ▼
+              ┌─────────────┐    失败    ┌────────┐   rollback()   ┌──────────┐
+              │Initializing │──────────▶│ Failed │───────────────▶│ Unloaded │
+              └──────┬──────┘            └────────┘  （等价于从未注册）  └──────────┘
+                     │ 成功                                              ▲
+                     ▼                                                   │
+                ┌────────┐   pause()   ┌────────┐                        │
+                │ Active │◀──────────▶│ Paused │                        │
+                └───┬────┘  resume()   └────────┘                        │
+                     │ drain()                                           │
+                     ▼                                                   │
+                ┌─────────┐  超时强制转换 / 在途操作完成                    │
+                │ Draining│───────────────────────────────────────────────┘
+                └─────────┘
+```
+
+**关键设计点（PRE-PLUGIN-002）**：`Initializing → Failed` 的转换必须触发**回滚动作**（资源释放、状态清理），完成后系统状态等价于该插件从未注册过——这是本状态机与"简单的成功/失败标记"的本质区别。回滚不是错误处理的附属品，是状态机的一等公民转换。
+
+**`Draining` 的超时保护（PRE-PLUGIN-003）**：`Draining` 状态下插件停止接受新请求，已在途操作允许运行完成；若超过可配置超时仍未完成，强制转入 `Unloaded` 并记录警告（不静默）——防止卡死插件阻塞整个系统关闭流程。
+
+### 37.2 PluginRegistry（PRE-PLUGIN-004）
+
+```
+PluginRegistry
+├── entries: HashMap<PluginId, PluginEntry>   // 原子注册：同 ID 重复注册被拒绝
+├── register(descriptor) -> Result<PluginHandle, RegistrationError>
+├── lookup(PluginId) -> Option<&PluginEntry>
+├── lifecycle_state(PluginId) -> LifecycleState
+└── unregister(PluginId) -> Result<(), UnregistrationError>   // 触发 §37.1 状态机的 drain→unload 路径
+```
+
+`PluginRegistry` 是全部五类既有插件点（`SolverPlugin`/`ParamOptimizer`/`ObservationBackend`/`QueryExecutor`/`GraphExporter`）共用的注册中心，而非各类插件各自维护一份注册表——避免"某类插件有注册中心、某类没有"的不一致。
+
+### 37.3 既有插件 trait 的特化关系（PRE-PLUGIN-005）
+
+```
+PluginLifecycle（本节新增，统一生命周期钩子）
+        △
+        │ 特化（补齐生命周期部分，领域方法不变）
+   ┌────┼────┬─────────┬──────────────┐
+SolverPlugin ParamOptimizer ObservationBackend QueryExecutor GraphExporter
+（08号§3.1）  （08号§12.2）    （02号§15）        （08号§18.3）  （08号§23.4）
+```
+
+本条不要求重写已发布的 trait 签名，只要求补齐生命周期钩子（`on_register`/`on_init`/`on_activate`/`on_deactivate`/`on_unload`），向后兼容既有 08 号文档设计。
+
+### 37.4 能力查找（PRE-PLUGIN-006，MVP 可延后）
+
+```rust
+trait CapabilityLookup {
+    fn find<T: PluginCapability>(&self) -> Option<&T>;   // 按能力类型查找，而非硬编码具体实现
+}
+```
+
+`pre-refine` 调用验证能力时，理想形态是 `registry.find::<dyn VerifyCapability>()` 而非直接 `use pre_verify::verify`。MVP 阶段 08号文档 §16 描述的三条 pipeline 仍可保持直接调用（插件数量少时收益不明显），该机制在插件生态扩大后再落地，触发条件见 01号文档优先度判定说明。
+
+### 37.5 可观测性复用（PRE-PLUGIN-007）
+
+生命周期事件（注册/激活/失败/卸载）经既有 `CandidateExplanation`/`stage_timings` 观测通道（08号文档 §26）的同构扩展记录，不新建平行观测系统。
+
+对应需求：PRE-PLUGIN-001~007。
+
+## 38. ECS Compatibility Architecture（ECS 兼容性架构）
+
+### 38.1 立场：ECS 友好的数据形状，而非内置 ECS 运行时
+
+```
+                pre-core（PhysicalSignature 等，正交小结构体，PRE-ECS-001）
+                        │
+                        ▼
+              pre-engine-api::ComponentView（标准映射契约，PRE-ECS-002）
+                        │
+        ┌───────────────┼────────────────┬──────────────────┐
+        ▼               ▼                ▼                  ▼
+   Bevy ECS Component  Godot 属性绑定   Unity Component   Unreal ActorComponent
+  （原生 ECS，拉模式）  （类 ECS，推/拉均可） （非 ECS，同构映射）  （非 ECS，同构映射）
+```
+
+PRE 不依赖任何具体 ECS 框架的存储实现（`bevy_ecs`/`specs`/`legion`），理由与 ADR-009/010 同源：核心不应被外部框架的演进节奏牵制。`ComponentView` 只定义映射*规则*，不提供 ECS *运行时*。
+
+### 38.2 ComponentView 契约（PRE-ECS-002, PRE-ECS-004）
+
+```rust
+trait ComponentView<T> {
+    fn extract(source: &StandardPhysicalResponse, landmark: LandmarkId) -> Option<T>;
+    fn field_name() -> &'static str;   // 标准命名，供跨适配层一致对照
+}
+```
+
+映射粒度是"实体（`LandmarkId`）关联若干正交数据片段"这一最弱前提——同时覆盖纯 ECS（Bevy）、场景树+脚本混合模型（Godot）与 Actor-Component 模型（Unreal/Unity，PRE-ECS-004），不假设宿主必须是"教科书式 ECS"。
+
+### 38.3 拉/推双模式（PRE-ECS-003）
+
+| 模式 | 触发方 | 已在用的例子 |
+|---|---|---|
+| 拉（Pull） | 宿主 System 主动查询 | `pre-bevy` 的 `playback_system` 每帧读取 `PlaybackCursor`（08号§18.2, §19） |
+| 推（Push） | PRE 状态变化主动通知 | `pre-godot` 查询结果经 `call_deferred` 回调主线程（08号§20） |
+
+两种模式复用既有 `PlaybackCursor`（拉）与 `QuerySession`（推，通过 poll/回调）机制，`ComponentView` 不改变这一既有分工，只补充"数据形状"这一正交维度。
+
+对应需求：PRE-ECS-001~004。

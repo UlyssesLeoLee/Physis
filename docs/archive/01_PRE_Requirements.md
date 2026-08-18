@@ -6,7 +6,7 @@
 |---|---|
 | 文书编号 | PRE-DOC-01 |
 | 文书名称 | Physical Retrieval Engine 需求定义书 |
-| 版本 | v0.1.4 |
+| 版本 | v0.1.6 |
 | 状态 | Draft — Baseline for Basic Design（尚未经 Stakeholder 正式承认） |
 | 作成者 | PRE 架构设计团队（本轮由 Claude 代笔起草） |
 | 承认者 | 未定（待 ST-05 项目负责人指定） |
@@ -22,6 +22,8 @@
 | v0.1.2 | 2026-08-17 | 新增第29节 Bevy 引擎集成需求（PRE-BEVY-001~006），补充 NG1/系统边界澄清、AC-06、OQ-07；优先度表与需求索引同步更新 | Claude |
 | v0.1.3 | 2026-08-17 | 交叉审查修正：PRE-BEVY-001 与 AC-06 原先枚举的 crate 清单不一致（6 个 vs 4 个）且均遗漏 pre-signature/pre-encoder/pre-gen/pre-cli 等成员，统一改为「除 pre-bevy 外的全部 workspace 成员」以消除枚举漂移 | Claude |
 | v0.1.4 | 2026-08-17 | 重大重构：PRE 定位明确为「可嵌入的底层 Rust 运行时」。第29节由 Bevy 专属重构为多宿主分层集成（Tier 0~3，覆盖 Bevy/Godot/Unity/Unreal/DCC 3D 软件），PRE-BEVY-001~006 废止并迁移至 PRE-ENG-*（对照表见 29.5）；新增第30节 GPU 后端需求（PRE-GPU-001~005，Vulkan/D3D 可移植性与宿主设备注入）、第31节可嵌入性需求（PRE-EMB-001~004）；新增 AC-07、OQ-08~10 | Claude |
+| v0.1.5 | 2026-08-17 | 新增第32节图论构造能力需求（PRE-GRAPH-001~006），补齐 ADR-006"不引入图数据库"之后从未被跟进的图论构造能力缺口；优先度表与需求索引同步更新；14 号文档新增 ER/UML 图集 | Claude |
+| v0.1.6 | 2026-08-17 | 新增第33节插件内核与生命周期需求（PRE-PLUGIN-001~007，统一现有五类插件点此前各自为政的注册/生命周期/回滚语义）、第34节 ECS 兼容性需求（PRE-ECS-001~004）；新增 AC-08 | Claude |
 
 ## 承认栏
 
@@ -202,6 +204,7 @@ PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用
 - AC-05：至少一条 Physics Experience 完成「生成 → 验证 → 写回 Atlas → 重新检索命中」闭环。
 - AC-06：在一个最小 Bevy 示例应用中，将一条已生成的 Physics Experience 的 Standard Physical Response 回放为实体 Transform 动画，且**除各适配层 crate 自身外的全部 workspace 成员**的依赖树均不出现任何宿主 SDK（`bevy`/`godot`/`pyo3`）——验证 ADR-009/ADR-010 的解耦是否落实，而非仅停留在文档声明；范围定义与 PRE-ENG-002 一致。
 - AC-07：至少两个不同 Tier 1 宿主适配层（Bevy 与 Godot）针对同一条黄金响应数据，经各自坐标/单位换算后产出的变换序列在容差内一致（PRE-ENG-008 一致性套件）——这是验证「宿主中立契约（PRE-ENG-003）是否真的中立」的唯一实证手段；若两者不一致，说明通用逻辑仍有一部分事实上泄漏在适配层里。
+- AC-08：人为构造一个初始化过程中途失败的插件（如 `MockSolverPlugin` 的 `FailOnInit` 脚本），验证系统在回滚后处于「等价于该插件从未注册」的状态——即不存在半初始化的残留资源、`PluginRegistry` 中查不到该插件、其占用的资源计数归零（PRE-PLUGIN-002）。
 
 ## 21. Risks
 
@@ -238,7 +241,7 @@ PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用
 
 ## 26. Requirement Traceability IDs 索引
 
-前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）、PRE-ENG（宿主集成，见第29节；按 Tier 分块编号）、PRE-GPU（GPU 后端与图形 API，见第30节）、PRE-EMB（可嵌入性，见第31节）。完整映射见 04_PRE_Traceability_Matrix.md。
+前缀说明：PRE-FR（功能）、PRE-NFR（非功能通用）、PRE-PHY（物理）、PRE-VEC（检索）、PRE-DATA（数据）、PRE-ML（AI/ML）、PRE-API（接口）、PRE-PERF（性能）、PRE-REL（可靠性）、PRE-REPRO（可重复性）、PRE-SEC（安全）、PRE-OBS（可观测性）、PRE-ENG（宿主集成，见第29节；按 Tier 分块编号）、PRE-GPU（GPU 后端与图形 API，见第30节）、PRE-EMB（可嵌入性，见第31节）、PRE-GRAPH（图论构造能力，见第32节）、PRE-PLUGIN（插件内核与生命周期，见第33节）、PRE-ECS（ECS 兼容性，见第34节）。完整映射见 04_PRE_Traceability_Matrix.md。
 
 ## 27. 需求优先度一览表（MoSCoW：必须 M / 推奨 S / 任意 C）
 
@@ -246,9 +249,9 @@ PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用
 
 | 优先度 | 需求 ID |
 |---|---|
-| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001, PRE-ENG-002, PRE-EMB-001, PRE-EMB-002 |
-| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002, PRE-ENG-001, PRE-ENG-003, PRE-ENG-004, PRE-ENG-005, PRE-ENG-006, PRE-ENG-007, PRE-ENG-008, PRE-ENG-101, PRE-EMB-003, PRE-EMB-004, PRE-GPU-003, PRE-GPU-005 |
-| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002, PRE-ENG-009, PRE-ENG-010, PRE-ENG-011, PRE-ENG-201, PRE-ENG-301, PRE-ENG-401, PRE-ENG-501, PRE-GPU-001, PRE-GPU-002, PRE-GPU-004 |
+| 必须（M） | PRE-FR-001, PRE-FR-002, PRE-FR-003, PRE-FR-004, PRE-FR-005, PRE-FR-006, PRE-FR-008, PRE-FR-009, PRE-FR-012, PRE-FR-013, PRE-FR-014, PRE-PHY-001, PRE-PHY-002, PRE-PHY-003, PRE-PHY-004, PRE-PHY-005, PRE-VEC-001, PRE-VEC-002, PRE-DATA-001, PRE-DATA-002, PRE-DATA-003, PRE-NFR-001, PRE-REL-001, PRE-REL-002, PRE-REPRO-001, PRE-OBS-001, PRE-ENG-002, PRE-EMB-001, PRE-EMB-002, PRE-GRAPH-002, PRE-GRAPH-006, PRE-PLUGIN-001, PRE-PLUGIN-002, PRE-PLUGIN-004 |
+| 推奨（S） | PRE-FR-007, PRE-FR-010, PRE-FR-011, PRE-VEC-003, PRE-VEC-004, PRE-ML-001, PRE-ML-002, PRE-ML-003, PRE-NFR-002, PRE-NFR-003, PRE-NFR-004, PRE-PERF-001, PRE-PERF-002, PRE-REPRO-002, PRE-SEC-001, PRE-OBS-002, PRE-ENG-001, PRE-ENG-003, PRE-ENG-004, PRE-ENG-005, PRE-ENG-006, PRE-ENG-007, PRE-ENG-008, PRE-ENG-101, PRE-EMB-003, PRE-EMB-004, PRE-GPU-003, PRE-GPU-005, PRE-GRAPH-001, PRE-GRAPH-003, PRE-GRAPH-004, PRE-PLUGIN-003, PRE-PLUGIN-005, PRE-PLUGIN-007, PRE-ECS-001, PRE-ECS-002 |
+| 任意（C） | PRE-FR-015, PRE-DATA-004, PRE-API-001, PRE-API-002, PRE-SEC-002, PRE-ENG-009, PRE-ENG-010, PRE-ENG-011, PRE-ENG-201, PRE-ENG-301, PRE-ENG-401, PRE-ENG-501, PRE-GPU-001, PRE-GPU-002, PRE-GPU-004, PRE-GRAPH-005, PRE-PLUGIN-006, PRE-ECS-003, PRE-ECS-004 |
 
 判定说明：
 - PRE-FR-015（ObservationBackend 接口预留）标为「任意」是因为 V0.1 唯一实现是 SimulationBackend，接口本身不影响端到端闭环能否跑通，属于面向 Phase 2 的架构投资。
@@ -260,6 +263,14 @@ PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用
 - PRE-ENG-009/010/301/401/501（Tier 2/3 与 Unity/Unreal/DCC）标为「任意」：MVP 阶段只做设计与边界约束，不实现。
 - PRE-GPU-001/002/004 标为「任意」：GPU 后端整体不在 MVP 实现；但 PRE-GPU-002（宿主设备注入）虽不实现，其**初始化架构预留**是硬性设计要求，见第30节说明。
 - PRE-GPU-003/005（CPU 为真值来源、无 GPU 时回退）标为「推奨」：它们约束的是"一旦做 GPU 就必须遵守"的规则，成本低且防止后期返工。
+- PRE-GRAPH-002（遍历 API）与 PRE-GRAPH-006（复杂度上界）标为「必须」：图能力若无深度上限直接就是生产环境的可用性风险（拒绝服务向量），而"有 API 但无上界"比"没有 API"更危险——故上界必须与 API 同时到位，不允许分期实现。
+- PRE-GRAPH-001/003/004（逻辑构造、单 Experience 范围、可视化导出）标为「推奨」：是完整能力的组成部分，但缺失时不阻塞 H1~H5 或 AC-01~AC-07 的达成，可在遍历 API 稳定后补齐。
+- PRE-GRAPH-005（属性过滤）标为「任意」：明确排除通用图查询语言表达力，MVP 只需简单谓词，超出此范围的需求需另立提案。
+- PRE-PLUGIN-001/002/004（生命周期状态机、回滚、原子注册）标为「必须」：这是现有五类插件点的地基，且回滚语义属于"没有会导致数据/资源泄漏"的一类，优先级高于任何具体插件功能。
+- PRE-PLUGIN-003/005/007（优雅卸载、既有 trait 特化改造、生命周期可观测）标为「推奨」：卸载路径在 MVP 单进程短生命周期场景下触发频率低；既有 trait 改造允许渐进式完成；可观测性复用既有体系成本低但非阻塞。
+- PRE-PLUGIN-006（能力查找机制）标为「任意」：明确记录为"等真正出现第二个跨插件调用场景再落地"，当前 pipeline 调用关系可保持直接调用不受影响。
+- PRE-ECS-001/002（数据正交性契约、ComponentView 映射）标为「推奨」：数据正交性已被现有设计满足，本条只是把隐性约定显式化，成本低；ComponentView 是 Tier 1 适配层已经在各自实现的模式（`PreLandmark` 等）的形式化收敛，非全新工作量。
+- PRE-ECS-003/004（拉/推双模式、非 ECS 宿主同构支持）标为「任意」：影响面局限于 Tier 1/2 适配层的内部实现选择，不影响核心与 MVP 端到端闭环，可随适配层数量增长自然完善。
 - 若必须（M）级需求在详细设计阶段出现无法满足的情况，须立即升级为风险并触发 ST-05 决策（而非静默降级为推奨）。
 
 ## 28. IPA 标准符合性自检清单
@@ -357,3 +368,47 @@ PRE 是一个**可嵌入的底层 Rust 运行时**（library/runtime，非应用
 - **PRE-EMB-002**：PRE 不得假设自己拥有主循环，不得阻塞调用线程执行长耗时任务；所有长耗时操作必须提供可由宿主驱动的分步执行或后台执行 + 轮询形式。
 - **PRE-EMB-003**：PRE 的线程使用策略必须可由宿主配置（线程数上限，或复用宿主线程池）；不得在宿主不知情的情况下擅自创建大量线程——3D 软件宿主对线程与调度通常有严格约束。
 - **PRE-EMB-004**：panic 不得跨越任何外语言边界（C ABI、Python 绑定），必须在边界处捕获并转换为该语言的错误表示（与 PRE-ENG-009 呼应，此处从核心侧再次约束）。
+
+## 32. Graph Construction Requirements（图论构造能力）
+
+**背景与本节要解决的具体缺口**：原始需求（第19节 Physical Graph）设想 Entity（Material/State/Geometry）/ Relation（Contact/Constraint/Attachment/Interaction）/ Field（Gravity/Wind/Pressure）构成的图结构。ADR-006 判定"不引入图数据库"，理由是 MVP 查询模式不构成引入证据。**但该判定只回答了"用什么存储"，从未回答"图论意义上的构造与查询能力本身要不要有、怎么做"**——审查现有 9~12 号文档发现，这条能力线自 ADR-006 之后再无人跟进，形成了一个被"否决图数据库"这一决定顺带带走、但从未被显式否决的缺口。本节补齐它。
+
+**核心立场**：**不引入图数据库 ≠ 不支持图论构造**。图是一种逻辑数据模型（节点与边的抽象），关系型存储完全可以承载它——SQLite 的递归 CTE（`WITH RECURSIVE`）可以表达多跳遍历。ADR-006 的决策与本节的能力要求不矛盾，本节新增 ADR-013 明确二者关系。
+
+- **PRE-GRAPH-001**：系统必须提供 Physical Graph 的**逻辑构造能力**：将 PhysicsExperience 中的实体（landmark/rigid body/material 区域）建模为节点，将约束、接触事件、场作用建模为边，且该图完全从现有 `PhysicsExperience`/`StandardPhysicalResponse` 数据派生（视图，不是新的存储主体）——不得为图引入独立的持久化系统（呼应 ADR-006，避免重复存储与一致性问题）。
+- **PRE-GRAPH-002**：必须提供图遍历查询 API，至少支持：给定起点节点与最大跳数，返回可达节点集合（BFS 语义）；给定两节点，判断是否连通并返回一条路径（若存在）。查询必须设置**硬性深度上限**（可配置，默认值需在详细设计中给出），防止病态图（如密集约束网络）导致递归查询失控。
+- **PRE-GRAPH-003**：图遍历查询必须在**单条 Experience 的范围内**完成（节点/边均来自同一条 Response），不得要求跨 Experience 的图连接——跨 Experience 的关联属于检索（Retrieval）的职责，不属于本节图论能力的职责，二者边界必须清晰（避免图论能力与向量检索能力的职责重叠）。
+- **PRE-GRAPH-004**：必须提供图的可视化导出能力（导出为 Mermaid `graph`/`flowchart` 或 GraphViz DOT 格式），用于调试与文档——这是"图论构造能力"落到可核查产物的方式，而非仅停留在内部数据结构。
+- **PRE-GRAPH-005**（推奨，非 MVP 阻塞）：图节点/边的属性应可参与 PRE-GRAPH-002 遍历查询的过滤条件（如"只沿 restitution > 0.5 的接触边遍历"），支持基础的属性图查询模式，但不追求通用图查询语言（如 Cypher）的表达能力——MVP 范围内的过滤条件以简单谓词为限。
+- **PRE-GRAPH-006**：图遍历查询的复杂度必须有文档记录的上界（如 O(V+E) 或明确的最坏情形退化条件），并纳入性能基准（对应 06 号文档的 Benchmark 体系）——图算法比向量检索更容易在忘记设置边界时产生指数级退化，必须显式防范。
+
+**MVP 范围判定**：PRE-GRAPH-001~004/006 纳入 MVP（成本低：视图 + 递归 CTE，不新增存储系统），PRE-GRAPH-005（属性过滤）为推奨但非阻塞。理由与 GPU/多宿主的判定基线一致——本节所有条目均不引入新的持久化系统或外部依赖，成本仅为 `pre-atlas` 内的查询逻辑，故可与 Bevy 适配层同级纳入 MVP，不必像 Tier 2/3 那样推迟。
+
+## 33. Plugin Kernel & Lifecycle Requirements（插件内核与生命周期）
+
+**背景与缺口**：本文书已定义至少五类"可插拔"扩展点——`SolverPlugin`（PRE-FR-002）、`ParamOptimizer`（PRE-FR-010）、`ObservationBackend`（PRE-FR-015）、`QueryExecutor`（PRE-ENG-005）、`GraphExporter`（PRE-GRAPH-004），以及隐含的 Encoder 版本插拔（PRE-ML-003）。审查发现这些插件点**各自独立设计，没有共享统一的注册、生命周期、错误恢复语义**——`SolverPlugin` 有 `init/step` 但无显式的 unload；`ObservationBackend` 连生命周期都未定义。这会导致：(1) 每类插件的失败处理各写一套，行为不一致；(2) 无法统一回答"一个插件初始化到一半失败，系统状态是否干净"这类问题；(3) 未来新增插件类型时无先例可循。本节建立统一插件内核，其余插件 trait 在此基础上特化，而非另起炉灶。
+
+- **PRE-PLUGIN-001**：系统必须定义统一的插件生命周期状态机，所有插件类型（现有五类 + 未来新增类型）必须遵守同一状态集合：`Registered → Initializing → Active ⇄ Paused → Draining → Unloaded`，以及贯穿全程的 `Failed` 分支。状态机与转换规则集中定义一次（详细设计给出具体状态图），不允许每类插件自定义私有生命周期。
+- **PRE-PLUGIN-002**：插件初始化失败（`Initializing → Failed`）必须触发**回滚**：任何在初始化过程中已分配的资源（内存、文件句柄、后台线程、已部分写入的状态）必须被清理，系统在回滚完成后必须等价于"该插件从未被注册"——不允许半初始化状态残留并被后续代码误用。
+- **PRE-PLUGIN-003**：插件卸载（`Draining → Unloaded`）必须是优雅的：`Draining` 状态下插件不再接受新请求，但已在途的操作（如一次仿真调用的中途）必须运行至完成或显式取消，不得强杀导致数据不一致；`Draining` 必须有超时上限，超时后强制转入 `Unloaded` 并记录警告（防止插件卡死导致系统无法关闭）。
+- **PRE-PLUGIN-004**：必须提供统一的 `PluginRegistry`，集中管理全部插件实例的注册/查询/生命周期查询，且注册操作必须是**原子的**——同一插件 ID 的重复注册、或在 `Registry` 处于不一致状态时的并发注册，必须被拒绝而非产生未定义行为。
+- **PRE-PLUGIN-005**：现有五类插件 trait（`SolverPlugin`/`ParamOptimizer`/`ObservationBackend`/`QueryExecutor`/`GraphExporter`）必须重新表述为在统一插件内核之上的**特化**——即它们除领域方法外，还需实现（或由内核自动派生）本节定义的生命周期钩子。本条不要求推翻已有 trait 签名，只要求补齐生命周期部分，向后兼容。
+- **PRE-PLUGIN-006**：插件间调用必须经由**标准化的能力接口**（capability interface），而不是插件直接持有其它插件的具体类型引用——例如 `pre-refine` 调用 `pre-verify` 不应硬编码依赖某个 verify 实现，而应通过注册在 `PluginRegistry` 中的能力查找。此设计使插件可被替换测试替身（呼应 `pre-testkit` 的 Mock 插件）而不改动调用方代码，是 08号文档既有 Mock 设计模式的架构级正式化，而非新增约束。
+- **PRE-PLUGIN-007**：插件生命周期事件（注册/激活/失败/卸载）必须可观测——纳入 PRE-OBS-001/002 既有的可观测性体系，不新建平行的观测通道。
+
+**MVP 范围判定**：PRE-PLUGIN-001~004 纳入 MVP（这是现有五类插件点的必要基础设施，成本是形式化既有模式，不是新增功能）；PRE-PLUGIN-005 要求向后兼容改造现有 trait，纳入 MVP 但允许渐进式完成（不要求一次性重写全部五类）；PRE-PLUGIN-006 的完整能力查找机制可推迟到出现第二个真实的跨插件调用场景时再落地（当前 pipeline 中的调用关系已在 08号文档 §16 写死为直接调用，重构为能力查找的收益需要更多插件数量才能体现）；PRE-PLUGIN-007 直接复用既有可观测性设计，成本极低，纳入 MVP。
+
+## 34. ECS Compatibility Requirements（ECS 兼容性）
+
+**背景**：PRE 作为底层物理引擎，其数据天然贴近 ECS 的 Component 语义（`PhysicsExperience` 由多个正交的小结构体组合而成，而非继承层级）。目标宿主中 Bevy 是纯 ECS 架构，Godot 4 的场景树也可通过 GDExtension 桥接到近似的 Component 模式；即使非 ECS 宿主（Unity 传统 GameObject/Unreal Actor-Component），也普遍存在"实体 + 可组合数据片段"的相似结构。若 PRE 的数据模型不预先考虑这种映射，每个 Tier 1 适配层都要各自设计一套"PRE 类型 → 宿主 Component"的映射（已在 08号文档 §19/§20 局部出现，如 `PreLandmark` 组件），缺乏统一原则。
+
+**核心立场**：PRE **不采用**任何特定 ECS 框架（`bevy_ecs`/`specs`/`legion`）作为核心内部实现——这与 ADR-009/010（核心不依赖宿主 SDK）同一立场的延伸，理由相同：绑定某个 ECS 框架的存储模型，会重演"核心被外部演进速度拖着走"的风险。PRE 提供的是**ECS 友好的数据形状**（小型、正交、可独立序列化的组件式结构体）与**显式的组件映射契约**，而不是自带一个 ECS 运行时。
+
+- **PRE-ECS-001**：`pre-core` 的公开数据类型（`PhysicalSignature` 的八个子结构、`StandardPhysicalResponse` 的各字段组等）必须保持**正交可分解**——每个子结构体可独立提取、独立序列化，不依赖其它子结构体的存在。这一约束已被 08号文档 §2 的既有设计满足（八个特征域本就是独立结构体），本条的作用是把它从"正好如此"提升为"必须如此"的显式契约，防止未来演进破坏这一性质。
+- **PRE-ECS-002**：`pre-engine-api` 必须提供 `ComponentView` 系列 trait/类型，定义"PRE 中立数据 → 类 ECS Component"的标准映射规则（键=`LandmarkId`，值=正交数据片段），任何 Tier 1 适配层的 ECS 集成（`PreLandmark` 等）必须基于该标准映射实现，不得各自发明字段命名或拆分规则。
+- **PRE-ECS-003**：ECS 兼容性设计必须同时支持"拉"与"推"两种集成模式：**拉模式**（宿主 ECS 的 System 主动查询 PRE 状态，如 Bevy 现有的 `playback_system` 每帧读取）与**推模式**（PRE 状态变化时主动通知宿主，用于非每帧轮询场景，如 Godot 的 `call_deferred` 回调）。两种模式均由 `pre-engine-api` 提供最小接口，具体宿主选用哪种模式是适配层决策，不由核心强制。
+- **PRE-ECS-004**：即使宿主没有 ECS 概念（Unreal 的 Actor-Component 模型、Unity 的传统 GameObject 模型），`ComponentView` 映射契约仍必须可用——Actor-Component 与 ECS 在"实体持有可组合数据片段"这一点上是同构的，PRE-ECS-002 的映射规则不得假设宿主是"纯 ECS"，只能假设"实体可关联若干正交数据片段"这一更弱、更通用的前提。
+
+**与已有设计的整合**：PRE-ECS-001~004 不推翻 02号文档 §33 已确立的宿主中立契约架构，是其在"数据形状"维度的补充——`pre-engine-api` 原有的 `PlaybackCursor`/`QuerySession`/`SpatialConvention` 回答"怎么播放、怎么查询、怎么换算坐标"，`ComponentView`（本节新增）回答"数据以什么颗粒度、什么形状交给宿主"。
+
+对应验收标准：AC-08（第20节新增，见下）。

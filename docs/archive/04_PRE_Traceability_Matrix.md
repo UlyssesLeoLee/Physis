@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文书编号 | PRE-DOC-04 |
-| 版本 | v0.1.4 |
+| 版本 | v0.1.5 |
 | 状态 | Draft |
 | 覆盖率 | 全部需求 ID 覆盖；PRE-BEVY-001~006 已废止并迁移至 PRE-ENG-*（见 01号文档 §29.5） |
 
@@ -18,6 +18,7 @@
 | v0.1.2 | 2026-08-17 | 新增 PRE-BEVY-001~006 六行，覆盖率更新为 53/53 |
 | v0.1.3 | 2026-08-17 | PRE-BEVY-001 行的约束对象由固定枚举改为「除 pre-bevy 外的全部 workspace 成员」，与 01 号文档 v0.1.3 保持一致 |
 | v0.1.4 | 2026-08-17 | PRE-BEVY-* 六行废止，替换为 PRE-ENG-*（20 条）、PRE-GPU-*（5 条）、PRE-EMB-*（4 条），对应 01号文档 v0.1.4 的多宿主分层重构 |
+| v0.1.5 | 2026-08-17 | 新增 PRE-GRAPH-*（6 条）、PRE-PLUGIN-*（7 条）、PRE-ECS-*（4 条），对应 01号文档 v0.1.5/v0.1.6 |
 
 Requirement → Architecture Component → Design Section → Test → Acceptance Criterion
 
@@ -97,9 +98,27 @@ Requirement → Architecture Component → Design Section → Test → Acceptanc
 | PRE-EMB-003 | pre-core | §35 | 线程数上限配置生效测试 | — |
 | PRE-EMB-004 | pre-ffi, pre-python | §35, §33.5 | panic 边界捕获测试（MVP 仅设计，实现后生效） | — |
 
+| PRE-GRAPH-001 | pre-atlas 图查询子模块 | §36.1 | GraphView 构造单元测试 | — |
+| PRE-GRAPH-002 | pre-atlas 图查询子模块 | §36.2 | 遍历查询单元测试（BFS语义、连通性判断） | — |
+| PRE-GRAPH-003 | pre-atlas 图查询子模块 | §36.5 | 跨 Experience 误用拒绝测试 | — |
+| PRE-GRAPH-004 | pre-atlas 图查询子模块 | §36.4 | Mermaid/DOT 导出格式测试 | — |
+| PRE-GRAPH-005 | pre-atlas 图查询子模块（推奨） | §36.2（edge_filter） | 属性过滤谓词测试 | — |
+| PRE-GRAPH-006 | pre-atlas 图查询子模块 | §36.3, 08§23.3 | 深度上限强制测试 + 性能基准（06号文档） | — |
+| PRE-PLUGIN-001 | pre-core（PluginLifecycle） | §37.1 | 状态机转换单元测试（全状态覆盖） | — |
+| PRE-PLUGIN-002 | pre-core（PluginSlot::init） | §37.1, 08§24.2 | 回滚测试：失败后系统等价于未注册 | AC-08 |
+| PRE-PLUGIN-003 | pre-core（PluginSlot::drain） | §37.1 | 优雅卸载 + 超时强制转换测试 | — |
+| PRE-PLUGIN-004 | pre-core（PluginRegistry） | §37.2, 08§24.3 | 并发重复注册拒绝测试 | — |
+| PRE-PLUGIN-005 | 五类既有插件 trait | §37.3, 08§24.4 | 既有 trait 签名不变的回归测试 | — |
+| PRE-PLUGIN-006 | pre-core（CapabilityLookup，推迟） | §37.4 | N/A（MVP 不要求落地） | — |
+| PRE-PLUGIN-007 | pre-core（生命周期事件观测） | §37.5 | 生命周期事件出现在既有观测通道的测试 | — |
+| PRE-ECS-001 | pre-core（数据正交性契约） | §38.1 | 子结构体独立序列化测试 | — |
+| PRE-ECS-002 | pre-engine-api（ComponentView） | §38.2, 08§25.1 | 标准映射规则单元测试 | — |
+| PRE-ECS-003 | pre-engine-api（PullSource/PushSink） | §38.3, 08§25.3 | 拉/推双模式最小接口测试 | — |
+| PRE-ECS-004 | pre-engine-api（ComponentView，非ECS宿主同构） | §38.2 | N/A（架构约束，随 Tier2 实现后生效） | — |
+
 ## 需求覆盖检查
 
-- 所有需求前缀（含新增 PRE-ENG / PRE-GPU / PRE-EMB）均至少映射到一个架构组件与设计章节：已核对，无遗漏。
+- 所有需求前缀（含新增 PRE-ENG / PRE-GPU / PRE-EMB / PRE-GRAPH / PRE-PLUGIN / PRE-ECS）均至少映射到一个架构组件与设计章节：已核对，无遗漏。
 - 未映射到具体 Acceptance Criterion 的需求均为决策类/延后类/支撑性需求，已在 Open Questions 或 ADR 中登记，不视为覆盖缺口：
 - PRE-ENG 系列的端到端验收由 AC-06（依赖隔离）与 AC-07（跨适配层一致性）承担；Tier 2/3 与预留块（PRE-ENG-009/010/011/301/401/501）MVP 不实现，其"验证方式"为设计评审而非测试。
 - PRE-GPU 系列 MVP 整体不实现；其中 PRE-GPU-002（设备注入）虽不实现，但**初始化架构预留**属于必须在 MVP 代码中体现的设计约束，验证方式为架构评审（ADR-012 已记录理由）。
