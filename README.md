@@ -33,6 +33,7 @@ Status: requirements/architecture baseline (V0.1 Draft), no implementation code 
 | 14 | [performance_budget](docs/14_performance_budget.md) | 60–240Hz Simulation-Space target, per-stage budget breakdown (to be measured, not assumed), regression policy. |
 | 15 | [testing_strategy](docs/15_testing_strategy.md) | Determinism, dependency-isolation, Ontology-Review, Compiler round-trip, and solver-fixture test layers; closes the one open Ontology Review finding. |
 | 16 | [dependency_license](docs/16_dependency_license.md) | The hard-gate license review matrix any embedded graph/vector database must clear before selection, plus the hand-rolled-store fallback position. |
+| 17 | [detailed_design](docs/17_detailed_design.md) | Concrete struct/trait/algorithm-level detail for every MVP-critical crate — `BodyHandle`/`PhysicsProfile`/`RuntimeDescriptor` layouts, arena/pool/slab allocator internals, SAP broad phase and SAT narrow phase pseudocode, `ConstraintRow` construction, the full Sequential Impulse solve loop, island Union-Find and sleep logic, the scheduler's job DAG execution, the no-global-state runtime lifecycle, the `catch_unwind`-wrapped C ABI implementation, an error model table, and a one-frame call sequence diagram. Non-MVP crates (`gvpe-graph`/`gvpe-compiler`/`gvpe-vector`) get interface-only detail, deliberately not deepened yet. |
 
 ## Archived
 
