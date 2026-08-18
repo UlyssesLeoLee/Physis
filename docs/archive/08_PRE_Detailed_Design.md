@@ -6,9 +6,9 @@
 |---|---|
 | 文书编号 | PRE-DOC-08 |
 | 文书名称 | Physical Retrieval Engine 详细设计书 |
-| 版本 | v0.1.3 |
+| 版本 | v0.1.5 |
 | 状态 | Draft |
-| 输入基线 | 02_PRE_Basic_Design.md（v0.1.4）、03_PRE_Architecture_ADR.md（v0.1.3） |
+| 输入基线 | 02_PRE_Basic_Design.md（v0.1.6）、03_PRE_Architecture_ADR.md（v0.1.5） |
 | 关联文书 | 04（追踪矩阵，本文书新增内容追加映射见文末）、09（测试用例一览） |
 | 前提 | 本文书仅覆盖 MVP 范围内声明支持的能力（Rigid / XPBD cloth·soft body / MPM elastic，02号文档 §30；以及 §33 定义的 Bevy 回放能力）；FEM 与宿主场景导入方向（PRE-ENG-011）仍为 stub/Phase 2，不在本文书详细展开 |
 
@@ -20,6 +20,8 @@
 | v0.1.1 | 2026-08-17 | 新增 §18 `pre-bevy` 详细设计，响应 02号文档 v0.1.2 新增的 §33 Engine Integration Architecture | Claude |
 | v0.1.2 | 2026-08-17 | §18 前提约束表述由「核心六个 crate」改为「除 pre-bevy 外的全部 workspace 成员」，与 PRE-BEVY-001 v0.1.3 定义一致 | Claude |
 | v0.1.3 | 2026-08-17 | 原 §18（pre-bevy）拆分重写为 §18 中立契约 / §19 Bevy / §20 Godot / §21 Tier2·3 边界 / §22 GPU 后端，响应 02号文档 v0.1.4 的多宿主分层架构 | Claude |
+| v0.1.4 | 2026-08-17 | 新增 §23 `pre-atlas` 图查询子模块详细设计，响应 02号文档 v0.1.5 §36 Graph Construction Architecture | Claude |
+| v0.1.5 | 2026-08-17 | 新增 §24 Plugin Kernel 详细设计、§25 ECS ComponentView 详细设计，响应 02号文档 v0.1.6 §37/§38 | Claude |
 
 ## 承认栏
 
@@ -55,6 +57,9 @@
 20. `pre-godot`：Tier 1 适配层（Godot）详细设计
 21. Tier 2 / Tier 3 边界详细设计（MVP 仅设计）
 22. `pre-gpu`：GPU 计算后端详细设计（MVP 不实现）
+23. `pre-atlas` 图查询子模块详细设计（Graph Construction）
+24. Plugin Kernel 详细设计
+25. ECS ComponentView 详细设计
 
 ---
 
@@ -770,6 +775,9 @@ pre-cli gen --experiment-def <path> --n-samples <n> --strategy lhs
 | Tier 1 适配层（Bevy / Godot） | §19, §20 | 02号 §33.4 | PRE-ENG-101, PRE-ENG-201 |
 | Tier 2/3 边界（C ABI / PyO3） | §21 | 02号 §33.5, §33.6 | PRE-ENG-009, PRE-ENG-010, PRE-EMB-004 |
 | GPU 设备注入与后端抽象 | §22 | 02号 §34 | PRE-GPU-001~005 |
+| 图论构造：GraphView/遍历/导出 | §23 | 02号 §36 | PRE-GRAPH-001~006 |
+| 插件生命周期状态机/回滚/Registry | §24 | 02号 §37 | PRE-PLUGIN-001~007 |
+| ECS ComponentView 契约 | §25 | 02号 §38 | PRE-ECS-001~004 |
 
 > 说明：既有的 47 条核心需求在 04 号文档中未重写 "Design Section" 列（避免大范围改动），本表作为它们与本文书之间的补充索引；宿主集成与 GPU 相关的 PRE-ENG-*/PRE-GPU-*/PRE-EMB-* 已在 04 号文档 v0.1.4 中作为独立行直接登记，不依赖本表，故不存在缺口。
 
@@ -995,6 +1003,9 @@ fn search(py: Python<'_>, req: QueryRequestPy) -> PyResult<CandidateExplanationP
 C ABI 一经发布即难以变更（R-12）。但边界约束必须现在确定，因为它**反向约束了 §18 中立契约的设计**——`LandmarkTransform` 使用 POD 数组而非数学库类型，正是这条约束的产物。若等到实现 Tier 2 时才发现契约层用了无法跨 ABI 的类型，代价是重构整个契约层与已有的 Tier 1 适配层。
 
 ## 22. `pre-gpu`：GPU 计算后端详细设计（MVP 不实现）
+23. `pre-atlas` 图查询子模块详细设计（Graph Construction）
+24. Plugin Kernel 详细设计
+25. ECS ComponentView 详细设计
 
 ### 22.1 设备来源与上下文构造（PRE-GPU-002, ADR-012）
 
@@ -1021,3 +1032,276 @@ struct PreContextDesc {
 
 无 GPU 或初始化失败 → 记录原因并回退 CPU 路径，不得失败退出。GPU 实现必须与 CPU reference 在容差内对齐（PRE-PHY-002 的延伸），回归测试与现有 solver 数值对齐测试共用同一套框架。
 
+
+## 23. `pre-atlas` 图查询子模块详细设计（Graph Construction，02号文档 §36 的下一层）
+
+本节不是新 crate，是 `pre-atlas` 内部的一个查询子模块，对应 PRE-GRAPH-001~006。
+
+### 23.1 类型定义
+
+```rust
+type NodeId = LandmarkId;   // 复用 §18.1 的 LandmarkId，不重新发明节点标识
+
+#[derive(Clone, Copy, Debug)]
+enum EdgeKind { Contact, Constraint, Attachment, FieldAction }
+
+struct GraphEdge {
+    from: NodeId,
+    to: NodeId,              // FieldAction 的 to 为伪节点（如 FieldNode::Gravity）
+    kind: EdgeKind,
+    attributes: EdgeAttributes,   // { restitution, penetration_depth, violation, field_magnitude, ... }
+}
+
+struct GraphView {
+    experience_id: ExperienceId,
+    nodes: Vec<NodeId>,
+    edges: Vec<GraphEdge>,
+}
+```
+
+### 23.2 构造函数（从既有字段派生，非新存储）
+
+```rust
+fn build_graph_view(response: &StandardPhysicalResponse, bc: &BoundaryConditions,
+                     excitation: &Excitation) -> GraphView {
+    let nodes = response.landmarks.clone();
+    let mut edges = Vec::new();
+    edges.extend(response.contact_events.iter().map(|c| GraphEdge {
+        from: c.contact_pair.0.into(), to: c.contact_pair.1.into(), kind: EdgeKind::Contact,
+        attributes: EdgeAttributes::from_contact(c),
+    }));
+    edges.extend(response.constraint_events.iter().map(GraphEdge::from_constraint_event));
+    edges.extend(bc.attachments.iter().map(GraphEdge::from_attachment));
+    edges.extend(excitation.events.iter().flat_map(GraphEdge::from_excitation_event));
+    GraphView { experience_id: response.experience_id, nodes, edges }
+}
+```
+
+### 23.3 遍历查询（PRE-GRAPH-002, PRE-GRAPH-006）
+
+```rust
+struct TraversalQuery {
+    start: NodeId,
+    max_depth: u32,          // 必填，无默认"无限"值——类型上禁止跳过该约束
+    edge_filter: Option<Box<dyn Fn(&GraphEdge) -> bool>>,   // PRE-GRAPH-005 属性过滤，推奨非必须
+}
+
+fn traverse(graph: &GraphView, query: &TraversalQuery) -> Result<Vec<NodeId>, GraphError> {
+    if query.max_depth > MAX_DEPTH_HARD_LIMIT {   // 硬上限，配置项不可超过（PRE-GRAPH-006 的双重保险）
+        return Err(GraphError::DepthExceedsHardLimit);
+    }
+    let mut visited = HashSet::from([query.start]);
+    let mut frontier = vec![query.start];
+    for _ in 0..query.max_depth {
+        let mut next = Vec::new();
+        for node in &frontier {
+            for edge in graph.edges.iter().filter(|e| e.from == *node || e.to == *node) {
+                if let Some(f) = &query.edge_filter { if !f(edge) { continue; } }
+                let neighbor = if edge.from == *node { edge.to } else { edge.from };
+                if visited.insert(neighbor) { next.push(neighbor); }
+            }
+        }
+        if next.is_empty() { break; }   // 提前终止：无新节点可达
+        frontier = next;
+    }
+    Ok(visited.into_iter().collect())
+}
+
+fn connected(graph: &GraphView, a: NodeId, b: NodeId, max_depth: u32) -> Result<Option<Vec<NodeId>>, GraphError> {
+    // BFS 变体，记录前驱以重建路径；实现细节从略，复杂度与 traverse 同阶
+    ...
+}
+```
+
+**实现说明**：本节给出内存版遍历算法（适用于单条 Experience 的图规模，通常 < 500 节点），与 02号文档 §36.2 给出的 SQL 递归 CTE 版本是同一语义的两种实现路径——小规模图直接在内存中反序列化后遍历（避免每次查询都发 SQL），大规模或需要 SQL 层过滤时用递归 CTE。选择哪条路径是实现细节，不是架构决策，但**深度上限约束对两条路径必须一致生效**（`MAX_DEPTH_HARD_LIMIT` 是共享常量，不允许内存版和 SQL 版各定义一套）。
+
+### 23.4 可视化导出
+
+```rust
+fn to_mermaid(graph: &GraphView) -> String {
+    let mut out = String::from("```mermaid\ngraph TD\n");
+    for edge in &graph.edges {
+        out += &format!("    {:?} -->|{:?}| {:?}\n", edge.from, edge.kind, edge.to);
+    }
+    out += "```\n";
+    out
+}
+```
+
+输出可直接粘贴进 Markdown 文档渲染，用于调试报告（对应 14 号文档的图集示例）。
+
+### 23.5 错误处理
+
+```rust
+enum GraphError {
+    DepthExceedsHardLimit,
+    UnknownStartNode(NodeId),
+    CrossExperienceQuery,   // 若调用方误传了不属于同一 GraphView 的节点，拒绝而非静默忽略（PRE-GRAPH-003）
+}
+```
+
+与 §15 错误码表同一模式：明确失败原因，不静默返回空结果掩盖误用。
+
+### 23.6 性能基准占位（对应 06 号文档 Benchmark 体系）
+
+06 号文档应补充：给定 500 节点、2000 边规模的图（MVP 单 Experience 图规模的保守上界），`traverse(max_depth=10)` 的 P99 延迟目标——具体数值留 06 号文档下一次修订确定，本节先声明该基准的存在性要求（PRE-GRAPH-006）。
+
+## 24. Plugin Kernel 详细设计（02号文档 §37 的下一层）
+
+### 24.1 状态机类型定义
+
+```rust
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum LifecycleState {
+    Registered,
+    Initializing,
+    Active,
+    Paused,
+    Draining,
+    Failed,
+    Unloaded,
+}
+
+trait PluginLifecycle {
+    fn on_register(&mut self) -> Result<(), RegistrationError>;
+    fn on_init(&mut self) -> Result<(), InitError>;
+    fn on_activate(&mut self) -> Result<(), ActivationError>;
+    fn on_deactivate(&mut self) -> Result<(), DeactivationError>;
+    /// 必须保证幂等：多次调用 on_unload 不产生副作用叠加
+    fn on_unload(&mut self) -> Result<(), UnloadError>;
+    /// 仅在 Initializing -> Failed 时调用；实现者必须保证调用后
+    /// 等价于 on_register 从未被调用过（PRE-PLUGIN-002）
+    fn rollback(&mut self) -> Result<(), RollbackError>;
+}
+```
+
+### 24.2 状态转换执行器
+
+```rust
+struct PluginSlot<P: PluginLifecycle> {
+    plugin: P,
+    state: LifecycleState,
+}
+
+impl<P: PluginLifecycle> PluginSlot<P> {
+    fn init(&mut self) -> Result<(), PluginError> {
+        debug_assert_eq!(self.state, LifecycleState::Registered);
+        self.state = LifecycleState::Initializing;
+        match self.plugin.on_init() {
+            Ok(()) => { self.state = LifecycleState::Active; Ok(()) }
+            Err(e) => {
+                self.state = LifecycleState::Failed;
+                self.plugin.rollback()?;              // 强制回滚，不允许跳过
+                self.state = LifecycleState::Unloaded; // 回滚后即等价于从未注册
+                Err(PluginError::InitFailed(e))
+            }
+        }
+    }
+
+    fn drain(&mut self, timeout: Duration) -> Result<(), PluginError> {
+        self.state = LifecycleState::Draining;
+        let deadline = Instant::now() + timeout;
+        while self.has_inflight_operations() {
+            if Instant::now() > deadline {
+                log::warn!("plugin drain timeout, forcing unload");   // PRE-PLUGIN-003：不静默
+                break;
+            }
+            std::thread::yield_now();
+        }
+        self.plugin.on_unload()?;
+        self.state = LifecycleState::Unloaded;
+        Ok(())
+    }
+}
+```
+
+### 24.3 PluginRegistry
+
+```rust
+struct PluginRegistry {
+    entries: Mutex<HashMap<PluginId, Box<dyn ErasedPluginSlot>>>,
+}
+
+impl PluginRegistry {
+    fn register<P: PluginLifecycle + 'static>(&self, id: PluginId, plugin: P)
+            -> Result<PluginHandle, RegistrationError> {
+        let mut entries = self.entries.lock().unwrap();
+        if entries.contains_key(&id) {
+            return Err(RegistrationError::DuplicateId(id));   // 原子性：持锁期间完成检查+插入
+        }
+        entries.insert(id, Box::new(PluginSlot { plugin, state: LifecycleState::Registered }));
+        Ok(PluginHandle(id))
+    }
+}
+```
+
+`Mutex` 覆盖"检查是否已存在 + 插入"整个操作，避免并发注册的 TOCTOU 竞争（PRE-PLUGIN-004 的"原子"要求在此落实为标准的持锁临界区，不是新算法）。
+
+### 24.4 既有插件类型的特化示例（以 SolverPlugin 为例）
+
+```rust
+impl<T: SolverPlugin> PluginLifecycle for SolverPluginAdapter<T> {
+    fn on_init(&mut self) -> Result<(), InitError> {
+        // 委托给 §3.1 既有的 init()，本层只负责状态机记账
+        self.inner.init(&self.initial_state, &self.bc, &self.material, &self.params, self.seed)
+            .map(|handle| { self.handle = Some(handle); })
+            .map_err(InitError::from)
+    }
+    fn rollback(&mut self) -> Result<(), RollbackError> {
+        self.handle = None;   // SolverHandle 的 Drop 负责底层资源释放
+        Ok(())
+    }
+    // on_register/on_activate/on_deactivate/on_unload 为薄封装，从略
+}
+```
+
+`SolverPluginAdapter` 是一层薄适配（不修改 §3.1 的 `SolverPlugin` trait 本身），验证了 ADR-014 "补齐钩子、不破坏既有签名" 的可行性。`ParamOptimizer`/`ObservationBackend`/`QueryExecutor`/`GraphExporter` 采用同一模式，此处不逐一展开。
+
+## 25. ECS ComponentView 详细设计（02号文档 §38 的下一层）
+
+### 25.1 契约定义
+
+```rust
+trait ComponentView<T> {
+    fn extract(response: &StandardPhysicalResponse, landmark: LandmarkId) -> Option<T>;
+    fn field_name() -> &'static str;
+}
+
+// 示例：位置分量的标准映射
+struct PositionComponent(pub [f64; 3]);
+impl ComponentView<PositionComponent> for StandardPhysicalResponse {
+    fn extract(response: &StandardPhysicalResponse, landmark: LandmarkId) -> Option<PositionComponent> {
+        let idx = response.landmarks.iter().position(|&l| l == landmark)?;
+        Some(PositionComponent(*response.position[idx].last()?))
+    }
+    fn field_name() -> &'static str { "pre.position" }
+}
+```
+
+`field_name()` 提供跨适配层一致的命名（如 Bevy 的 Component 类型名、Godot 的导出属性名参照同一字符串），避免各 Tier 1 适配层各自命名导致调试时"同一概念在不同宿主里叫不同名字"。
+
+### 25.2 与既有 Bevy 组件的对齐（回溯 §19）
+
+`pre-bevy` 的 `PreLandmark`（§19.1 引入）在实现阶段应改写为基于 `ComponentView` 派生，而非直接手写字段：
+
+```rust
+#[derive(Component)]
+struct PreLandmark(LandmarkId);
+
+// System 内部调用标准契约，而非手写插值+赋值混在一起
+fn sync_component<T: Component>(response: &StandardPhysicalResponse, ...)
+where StandardPhysicalResponse: ComponentView<T> { ... }
+```
+
+本条不要求推翻已合并的 §19 设计，是实现阶段的收敛方向说明。
+
+### 25.3 拉/推双模式的最小接口
+
+```rust
+trait PullSource<T> { fn pull(&self, landmark: LandmarkId) -> Option<T>; }   // Bevy 风格：宿主 System 主动调用
+trait PushSink<T>   { fn push(&mut self, landmark: LandmarkId, value: T); }  // Godot 风格：PRE 状态变化后调用
+```
+
+`PlaybackCursor::sample()`（§18.2）天然满足 `PullSource`；`QuerySession` 的 `poll()`/回调路径（§18.3）是 `PushSink` 的应用场景。两个 trait 均为最小接口，不要求适配层同时实现两者。
+
+对应需求：PRE-PLUGIN-001~007, PRE-ECS-001~004。
