@@ -40,6 +40,8 @@ Status: requirements/architecture baseline (V0.1 Draft), no implementation code 
 | 21 | [graph_compiler_detailed_design](docs/21_graph_compiler_detailed_design.md) | `GraphStore` internals with an ontology-mirroring closed `NodeKind` enum, the depth-bounded traversal query, the `write_state_batch` guard that closes Ontology Review finding ONT-ISS-001 in code, and the `compile()` algorithm turning graph data into a `PhysicsProfile` with round-trip test guarantee. |
 | 22 | [vector_detailed_design](docs/22_vector_detailed_design.md) | Deterministic signature extraction (V1, no learned parameters), a flat-scan `VectorIndex` fallback with fused multi-vector similarity, and the type-level guarantee that `gvpe-vector` cannot be called mid-step. |
 | 23 | [energy_wave_field_process_algorithms](docs/23_energy_wave_field_process_algorithms.md) | Concrete, feature-gated (opt-in, zero-default-cost) numerics for energy-conservation checking, event-sourced wave-amplitude sampling, a `FieldSampler` trait generalizing the existing gravity hook, and a worked Process state machine (Melting) wired into the graph write-path guard. |
+| 24 | [fluid_fem_reservation_design](docs/24_fluid_fem_reservation_design.md) | Why Fluid and general FEM are not a `ConstraintRow`/XPBD extension (unlike Rope/Cloth/SoftBody), the reserved-but-unimplemented `ShapeDesc::FluidRegion` interface, the explicit `CompileError::UnsupportedModel` failure path, and the bounded list of design questions a future document would need to answer. |
+| 25 | [gpu_backend_detailed_design](docs/25_gpu_backend_detailed_design.md) | Deepens `04_architecture.md` §4.6's GPU constraint into a concrete `GpuSolverBackend` trait boundary, a data-layout audit proving the CPU SoA types are already GPU-uploadable, Physics-Islands-as-dispatch-unit reuse, and the determinism-mode rule requiring `Deterministic` mode to stay CPU-only. |
 
 ## Archived
 
@@ -59,3 +61,35 @@ were incompatible enough to warrant a replacement rather than an extension.
 - **The ontology is built to extend without breaking.** Energy, Wave, Field, Process, and Law are
   schema-complete from day one even though MVP only populates Entity/Material/Phase/Property/
   PhysicalModel/Solver/PhysicsProfile/Simulation/Observation.
+
+## 中文简介
+
+**GVPE —— 图治理向量物理引擎（Graph-Governed Vector Physics Engine）。** 一个自主研发、实时运行的
+Rust 物理引擎内核（并非对 Rapier/Bullet/PhysX/Jolt/Box2D 等第三方引擎的封装），由离线的物理知识图谱
+（Physics Knowledge Graph）治理、通过物理向量空间（Physics Vector Space）检索，并由物理编译器
+（Physics Compiler）将高层知识编译为纯数值的 `PhysicsProfile` 数据桥接到运行时——图谱与向量空间
+永远不是仿真热路径的运行时依赖。
+
+**不可打破的唯一不变量**：即使完全关闭图谱、向量空间、AI 推理与 3DGS 闭环，仅剩的 Rust Runtime
+本身仍必须是一个完整的、可独立运行的、商用实时级物理引擎，并可通过 C ABI 被游戏引擎调用。详见
+`docs/00_vision.md` §0.5。
+
+当前状态：需求/架构基线阶段（V0.1 草案），尚无实现代码。
+
+**三大空间，单向依赖**：仿真空间（Simulation Space，60–240Hz 计算）、向量空间（Vector Space，
+事件触发的检索）、图谱空间（Graph Space，离线的知识组织）——依赖方向永远是 图谱/向量/AI → 编译器 →
+运行时，绝不反向。
+
+**核心原则**：
+- **内核永远自主研发**，不引入、不轻度封装任何第三方物理引擎作为自己的求解器。
+- **图谱是知识面，不是数据面**——运行时热路径永不触碰逐帧状态或实时查询。
+- **本体先行、只增不破**——Energy/Wave/Field/Process/Law 从第一天起就有完整 schema，即使 MVP
+  阶段只填充 Entity/Material/Phase/Property/PhysicalModel/Solver/PhysicsProfile/Simulation/
+  Observation。
+- **检索只提议，物理来验证**（Retrieval proposes, physics verifies）——向量空间给出的候选结果
+  永远不是最终答案，必须经过仿真验证闭环。
+
+文档编号 00–25（见上方“Documents”表格）覆盖需求、本体、图谱 Schema、架构、各子系统设计、以及
+关节/CCD、XPBD 软体、高级碰撞形状、图谱编译器、向量检索、能量/波动/场/过程数值算法、流体/FEM
+边界预留、GPU 计算后端等详细设计；`docs/archive/` 保留了被 GVPE 取代的前身项目 PRE
+（Physical Retrieval Engine）的历史文档。
