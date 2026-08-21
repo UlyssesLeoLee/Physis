@@ -53,3 +53,7 @@ sanitizer-output/
 # Bench result caches
 critcmp_out/
 bencher-output/
+
+# Stray cargo build/check output (failed background runs)
+check*.out.txt
+check*.err.txt
