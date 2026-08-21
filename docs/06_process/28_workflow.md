@@ -27,6 +27,7 @@
 | v0.2 | 2026-08-19 | — | 补全 8 个 ⚠️ 待补项（`29` ~ `36`）+ 4 个关键流程模板（`37` ~ `40`）；适用步骤覆盖率 92.2% → **100%**；文档集扩展至 40 份。 |
 | v0.3 | 2026-08-19 | — | 补全 14 个 §11 引用的流程级模板（`41` ~ `54`）：评审 / CR / Hypercare / Hotfix / Retro / 收尾 / KT / 验收 / 会议 / 状态 / WBS / 安全 / 测试总结 / 审计；文档集扩展至 54 份主文档。 |
 | v0.4 | 2026-08-19 | — | 补全 8 份详细设计工程横切文档（`55` ~ `62`）：错误码目录 / 日志设计 / 编码标准 / 数据布局 / 算法伪代码 / 模块依赖矩阵 / 性能工程 / unsafe 清单；文档集扩展至 **62 份**主文档。 |
+| v0.5 | 2026-08-20 | 架构师 | **7 个前置决策全部敲定**（§16 决策登记），开启实施阶段。决策涵盖：MSRV / 签名查询 API / CCD MVP 范围 / C ABI 版本号 / panic 政策 / `deterministic` feature 骨架化 / cargo tree review 机制。 |
 | v0.3 | 2026-08-19 | — | 补全 14 个 §11 引用的流程级模板（`41` ~ `54`）：评审 / CR / Hypercare / Hotfix / Retro / 收尾 / KT / 验收 / 会议 / 状态 / WBS / 安全 / 测试总结 / 审计；文档集扩展至 54 份主文档。 |
 
 ## 2. 文档目的
@@ -832,7 +833,142 @@
 | STG-06 単体 11 | 1 | 库产品：无业务要求。 |
 | ... 等等 | ~29 | 散落于超上流 / 要件 / 基本 / 详细 / 集成 / 系统 / 验收 / 运用阶段。 |
 
-## 13. 流程持续改进机制
+## 16. 决策登记（v0.5 起）
+
+> 本节记录实施期前的所有**架构 / 工程决策**，每条决策可追溯到对应 QA 项、文档节、影响范围。
+> 决策一经登记，**变更**需走 §11.32 变更管理流程。
+
+### 16.1 决策清单（按登记时间倒序）
+
+| 编号 | 决策 | 选择 | 关联节 | 缓解的 QA 项 |
+|---|---|---|---|---|
+| DEC-007 | `cargo tree` artifact review 机制 | CI 在 PR / main 上跑 `cargo tree`，diff 输出到 artifact，架构师 review | `D-26 §18.12.1` | QA-D-01, QA-Q-02, QA-T-04 |
+| DEC-006 | `feature = "deterministic"` 骨架化 | **是**——feature 已就位但 MVP 仅 `BestEffort` 实现；架构上区分 Fast / Deterministic Mode | `D-05 §5.3`, `D-26 §6` | QA-D-10, QA-I-06 |
+| DEC-005 | 核心 crate panic 政策 | **panic = bug**（视为代码错误，CI 测试覆盖）；冷路径（场景加载 / 配置解析）允许 panic；FFI 边界 `catch_unwind` + `panic = "abort"` | `D-26 §18.7.1`, `D-26 §18.8` | QA-F-02, QA-F-03 |
+| DEC-004 | C ABI 版本号机制 | `extern "C" fn gvpe_abi_version() -> u32`，返回 `GVPE_ABI_VERSION` 编译期常量；集成方启动时检查 | `D-10 §10` | QA-F-01 |
+| DEC-003 | CCD MVP 范围 | **推迟到 Phase 2**；MVP 仅离散 broad + narrow phase | `D-18 §18`, `D-13 §13` | QA-I-04 |
+| DEC-002 | `PhysicsSignature` 组合查询 API 形状 | 闭 enum `SignatureQuery`，变体 `And(Vec<SubQuery>)` / `Or(Vec<SubQuery>)` / `Not(Box<SubQuery>)` / 子类型 `SubQuery::Material(...)` 等；类型层 `#[non_exhaustive]` | `D-11 §11.6` | QA-D-03, QA-VEC-002 |
+| DEC-001 | MSRV 首发版本 | **1.75.0**（stable，patch 锁定），`rust-toolchain.toml` 同步 | `D-26 §18.2.1` | QA-T-06, QA-T-13 |
+
+### 16.2 决策详情
+
+#### DEC-001：MSRV = 1.75.0
+
+- **选择**：`rust-toolchain.toml` 锁定 `1.75.0`；`Cargo.toml` 的 `package.rust-version = "1.75"`。
+- **理由**：
+  - 1.75 稳定、生态成熟（cbindgen / criterion / cargo-deny 全支持）；
+  - 集成方（Unity / Unreal）通常滞后 Rust 版本，1.75 兼容性好；
+  - `portable SIMD`（`core::simd`）即便 1.75 也不稳定，已决定全走 vendor intrinsics（与 `D-26 §18.5.1` 一致）；
+  - Patch 版本锁定避免 rustup 自动升级引入编译器回归。
+- **影响范围**：所有 17 个 crate、CI 工具链、集成方 MSRV 期望。
+- **缓解**：[QA-T-06] [QA-T-13] [QA-T-01]（SIMD 仍走 vendor intrinsics）。
+
+#### DEC-002：`PhysicsSignature` 组合查询 API
+
+- **选择**：
+  ```rust
+  #[non_exhaustive]
+  pub enum SignatureQuery {
+      And(Vec<SubQuery>),
+      Or(Vec<SubQuery>),
+      Not(Box<SubQuery>),
+      Material(MaterialFilter),
+      Motion(MotionFilter),
+      Deformation(DeformationFilter),
+      // ... 由 SubQuery 闭 enum 表达
+  }
+
+  #[non_exhaustive]
+  pub enum SubQuery { Material(...), Motion(...), Deformation(...) /* ... */ }
+  ```
+- **理由**：
+  - 闭 enum + `#[non_exhaustive]`：编译期穷举 + 未来扩展不破 ABI；
+  - `And/Or/Not` 表达复合查询（与 `VEC-002` 类型层安全一致）；
+  - 子查询为独立 enum：`SubQuery::Material` / `SubQuery::Motion` 等，便于 `cargo doc` 单独跳转；
+  - 显式 `Vec<SubQuery>` 而非位掩码：可读性 + 编译期大小可调。
+- **影响范围**：`gvpe-vector` crate 公共 API、集成方调用方。
+- **缓解**：[QA-D-03] [QA-VEC-002] [QA-D-18]（`#[non_exhaustive]` 演化路径）。
+
+#### DEC-003：CCD MVP 范围 = Phase 2
+
+- **选择**：MVP **不**实现 CCD；broad + narrow 阶段仅做离散检测。CCD 列入 Phase 2 backlog。
+- **理由**：
+  - CCD (`conservative advancement`) 与 sleeping 交互未明确（`QA-I-04` Blocker）；
+  - MVP 范围纪律（`R-FR-002` 仅承诺 MVP 原语）；
+  - Phase 2 有更多时间研究 sleeping + CCD 交互；
+  - 高速运动场景可先通过提高 step 频率 + 减小 dt 部分缓解。
+- **影响范围**：`gvpe-collision` crate（MVP 不实现 CCD trait）；高速集成方场景需 Phase 2 升级。
+- **缓解**：[QA-I-04] [QA-D-07]（占位 + Phase 1 评估）。
+
+#### DEC-004：C ABI 版本号机制
+
+- **选择**：
+  ```rust
+  pub const GVPE_ABI_VERSION: u32 = 1;
+
+  #[no_mangle]
+  pub extern "C" fn gvpe_abi_version() -> u32 { GVPE_ABI_VERSION }
+  ```
+  头文件（`gvpe-ffi/include/gvpe.h`）：
+  ```c
+  uint32_t gvpe_abi_version(void);
+  #define GVPE_ABI_VERSION 1
+  ```
+- **理由**：
+  - 简单可查：集成方启动时调一次，对比期望值；
+  - 编译期常量：cbindgen 自动生成 `#define`；
+  - Bump 时机：任何 `#[repr(C)]` 字段变化 → `cargo semver` + 手动 bump ABI 版本；
+  - 不依赖 semver（独立维度）。
+- **影响范围**：`gvpe-ffi` crate、所有集成方调用方。
+- **缓解**：[QA-F-01]。
+
+#### DEC-005：panic 政策
+
+- **选择**：
+  - **核心 crate（求解相关）**：panic = bug，CI 必测试覆盖；不允许 `panic!` / `unwrap` / `expect` 在热路径；
+  - **冷路径（场景加载、配置解析、形状解析）**：允许 panic（输入非法直接终止）；
+  - **FFI 边界（`gvpe-ffi`）**：
+    - `[profile.release] panic = "abort"`（仅 `gvpe-ffi` crate）；
+    - 所有 `extern "C"` 函数用 `catch_unwind` 包裹，转为 `GVPE_E_PANIC` 错误码；
+  - **测试代码**：`unwrap` / `expect` 允许。
+- **理由**：
+  - 与 `R-NFR-002` 零分配、确定性一致；
+  - 跨 `extern "C"` 边界的栈展开是 UB，必须 `catch_unwind` 或 `panic = "abort"`；
+  - 集成方进程**不**应被 GVPE panic 拖死。
+- **影响范围**：所有 crate（lint + review 强制）；`gvpe-ffi` 单独 `[profile]`。
+- **缓解**：[QA-F-02] [QA-F-03] [QA-D-09]（实施期 review 强制）。
+
+#### DEC-006：`feature = "deterministic"` 骨架化
+
+- **选择**：
+  - 每个 `gvpe-*` crate 的 `Cargo.toml` 加 `feature = "deterministic"`；
+  - MVP 实际行为 = `DeterminismMode::BestEffort`；
+  - 架构上区分 `Fast` / `Deterministic` 路径（`D-05 §5.3` 落地）；
+  - `deterministic` feature 开启时切换到 Deterministic 路径（即便 MVP 部分功能未完整实现）。
+- **理由**：
+  - `R-NFR-001` 要求架构上自首版起区分 Fast / Deterministic Mode；
+  - 集成方可依赖 feature 存在（即使 MVP 不完整）；
+  - Phase 1 / Phase 2 渐进实现 Deterministic 路径。
+- **影响范围**：所有 17 个 crate 的 `Cargo.toml`。
+- **缓解**：[QA-D-10] [QA-I-06] [QA-D-12]（`gvpe-vector` 边界同步登记）。
+
+#### DEC-007：`cargo tree` artifact review 机制
+
+- **选择**：
+  - CI workflow 在 PR 上跑 `cargo tree --workspace --no-dedupe --format "{p} {d}"`；
+  - 输出 diff vs `main` 分支的 artifact；
+  - 关键路径：`cargo tree -p gvpe-core -p gvpe-collision -p gvpe-dynamics -p gvpe-constraint -p gvpe-solver -p gvpe-island -p gvpe-scheduler -p gvpe-runtime` 输出**禁止**包含 `gvpe-graph` / `gvpe-vector` / `gvpe-compiler` / `gvpe-inference` / `gvpe-3dgs`（`AC-02` 机械可验证）；
+  - 违反 → CI 阻断 + 架构师 review。
+- **理由**：
+  - 机械可验证是 `AC-02` 的核心要求；
+  - 增量 diff 让 PR review 可聚焦（不需要对比完整 tree）；
+  - 集成 dev-loop：xtask / cargo alias 在本地 build 前跑同样检查。
+- **影响范围**：CI workflow + xtask。
+- **缓解**：[QA-D-01] [QA-Q-02] [QA-T-04]。
+
+### 16.3 决策变更
+
+任何决策的变更需走 `42_change_request_form.md` + §11.32 变更管理流程。变更记录追加到本节。
 
 - **触发**：
   - `GVPE-DOC-27`（QA 登记）每两周审视时，若发现某流程步骤执行不畅；
@@ -887,7 +1023,7 @@
 
 > 注：§10.7 阶段 7（结合）实际有 10 步（66-75），其中 72 步（DB 結合試験）标 N/A。表中"結合 8"为方便显示四舍五入，正式 150 步仍按 10 步计。读者请以 §10.7 详表为准。
 
-## 16. 附录：与其他 28 份文档的双向索引
+## 17. 附录：与其他 28 份文档的双向索引
 
 | 文档 | 主要对应工作流步骤 |
 |---|---|

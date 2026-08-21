@@ -311,3 +311,22 @@
 - **每周**：review 全部 Open 项中**新增**的、或**状态变更**的；
 - **每两周**：对所有 Blocker / High 项做一次集中审视；
 - **每个 Phase 边界**（MVP → Phase 1 → ...）：全表重审一次，关闭已解决项，重新评估未解决项的严重度。
+
+## 13. 附录：v0.5 决策关闭的 Blocker 项
+
+> 2026-08-20 实施期启动 v0.5 决策登记，7 个前置决策全部敲定（详见 `28_workflow.md` §16）。下表列出被决策缓解的 Blocker / High QA 项状态变更。
+
+| QA ID | 决策编号 | 状态变更 | 关闭方式 |
+|---|---|---|---|
+| QA-D-01 | DEC-007 | Open → Closed（缓解） | CI 跑 `cargo tree` 强制 AC-02；xtask 跑 dev-loop |
+| QA-D-03 | DEC-002 | Open → Closed（缓解） | 闭 enum `SignatureQuery` + `#[non_exhaustive]` |
+| QA-D-10 | DEC-006 | Open → Closed（缓解） | 所有 crate 加 `feature = "deterministic"` |
+| QA-F-01 | DEC-004 | Open → Closed（缓解） | `gvpe_abi_version()` + `GVPE_ABI_VERSION` 常量 |
+| QA-F-02 | DEC-005 | Open → Closed（缓解） | 核心 panic = bug；FFI `catch_unwind` + `panic = "abort"` |
+| QA-I-04 | DEC-003 | Open → Closed（缓解） | CCD 推迟 Phase 2；MVP 仅离散 broad + narrow |
+| QA-I-06 | DEC-006 | Open → Closed（缓解） | `DeterminismMode` 架构区分；MVP BestEffort |
+| QA-Q-02 | DEC-007 | Open → Closed（缓解） | CI artifact + 增量 diff |
+| QA-T-06 | DEC-001 | Open → Closed（缓解） | MSRV 锁定 1.75.0 |
+| QA-T-13 | DEC-001 | Open → Closed（缓解） | `rust-toolchain.toml` 锁 patch 版本 |
+
+> 注：**已缓解 ≠ 实施期可忽略**。上表条目在实施期 PR review 时仍需逐项检查（特别是 QA-F-02 FFI panic 安全、QA-D-01 cargo tree 阻断、QA-T-13 toolchain 锁）。

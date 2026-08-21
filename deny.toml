@@ -1,0 +1,131 @@
+# cargo-deny configuration for GVPE
+# 见 `GVPE-DOC-16`（依赖许可证）、`GVPE-DOC-26` §18.13（拒绝清单）、
+# `GVPE-DOC-60` §8（CI 验证）
+# GitHub: https://github.com/EmbarkStudios/cargo-deny
+
+[graph]
+all-features = false
+no-default-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+notice = "warn"
+ignore = []
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "0BSD",
+    "MPL-2.0",  # cbindgen - 评估中（已登记依赖审查）
+    "BSL-1.0",  # Boost Software License - 评估中
+]
+confidence-threshold = 0.8
+unlicensed = "deny"
+copyleft = "deny"  # 拒绝 GPL / LGPL / AGPL / SSPL / BUSL
+allow-osi-fsf-free = "neither"
+default = "deny"
+exception = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+deny = [
+    # 物理引擎（PROHIBIT-01 / 02）— 详见 GVPE-DOC-26 §18.13
+    { crate = "rapier*" },
+    { crate = "rapier3d*" },
+    { crate = "rapier2d*" },
+    { crate = "bullet*" },
+    { crate = "physx*" },
+    { crate = "physx-rs*" },
+    { crate = "jolt*" },
+    { crate = "jolt-rs*" },
+    { crate = "box2d*" },
+    { crate = "nphysics*" },
+    { crate = "parry*" },
+
+    # 数学核心（PROHIBIT-01 推论）— 详见 GVPE-DOC-26 §18.5
+    { crate = "glam" },
+    { crate = "nalgebra" },
+    { crate = "cgmath" },
+    { crate = "ultraviolet" },
+
+    # 异步 runtime（GVPE-DOC-26 §18.6.3）
+    { crate = "tokio" },
+    { crate = "async-std" },
+    { crate = "smol" },
+    { crate = "embassy" },
+
+    # ML / 推理（PROHIBIT-05）
+    { crate = "tch" },
+    { crate = "candle-core" },
+    { crate = "candle-nn" },
+    { crate = "candle-transformers" },
+    { crate = "burn" },
+    { crate = "ort" },
+    { crate = "tract" },
+
+    # 锁原语（GVPE-DOC-26 §18.6.2 — 核心 crate 拒绝）
+    { crate = "parking_lot" },
+    { crate = "parking_lot_core" },
+    { crate = "crossbeam-channel" },
+    { crate = "crossbeam-queue" },
+    { crate = "crossbeam-epoch" },
+    { crate = "crossbeam-utils" },
+
+    # 错误处理（GVPE-DOC-26 §18.8.2 — 核心 crate 拒绝）
+    { crate = "anyhow" },
+    { crate = "eyre" },
+
+    # 序列化（GVPE-DOC-26 §18.13 — 核心 crate 拒绝 serde）
+    { crate = "serde" },
+    { crate = "serde_json" },
+    { crate = "bincode" },
+    { crate = "postcard" },
+
+    # 日志（GVPE-DOC-26 §18.9）
+    { crate = "log" },  # tracing 替代
+
+    # 加密 / 网络（GVPE-DOC-26 §18.13）
+    { crate = "openssl" },
+    { crate = "openssl-sys" },
+    { crate = "ring" },
+    { crate = "rustls" },
+    { crate = "reqwest" },
+    { crate = "hyper" },
+    { crate = "tokio" },  # 重复
+    { crate = "async-channel" },
+
+    # GUI（GVPE-DOC-26 §18.13）
+    { crate = "egui" },
+    { crate = "iced" },
+    { crate = "tauri" },
+    { crate = "gtk*" },
+
+    # 随机数（核心路径不需要；仅测试）
+    { crate = "rand" },
+    { crate = "fastrand" },
+
+    # 时间（核心路径不需要）
+    { crate = "chrono" },
+    { crate = "time" },
+]
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

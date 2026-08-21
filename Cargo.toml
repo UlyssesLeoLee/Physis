@@ -1,0 +1,103 @@
+# GVPE workspace root
+# 见 `GVPE-DOC-04`（架构）、`GVPE-DOC-26`（技术选型）、`GVPE-DOC-60`（模块依赖矩阵）
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/gvpe-math",
+    "crates/gvpe-core",
+    "crates/gvpe-memory",
+    # "crates/gvpe-shape",
+    # "crates/gvpe-collision",
+    # "crates/gvpe-dynamics",
+    # "crates/gvpe-constraint",
+    # "crates/gvpe-solver",
+    # "crates/gvpe-island",
+    # "crates/gvpe-scheduler",
+    # "crates/gvpe-runtime",
+    # "crates/gvpe-ffi",
+    # "crates/gvpe-graph",
+    # "crates/gvpe-vector",
+    # "crates/gvpe-compiler",
+    # "crates/gvpe-inference",
+    # "crates/gvpe-3dgs",
+    # 全部 17 个 crate 计划在 M2-M4 里程碑逐步加入（见 36_project_plan.md）
+]
+exclude = [
+    "target",
+    "docs",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/UlyssesLeoLee/Physis"
+readme = "README.md"
+authors = ["GVPE Project Team"]
+keywords = ["physics", "engine", "game", "real-time", "rust"]
+categories = ["game-development", "simulation", "game-engine"]
+publish = false  # crates.io 发布由各 crate 的 `cargo publish` 单独触发
+
+# 共享元数据：所有子 crate 自动继承
+[workspace.dependencies]
+# 核心依赖
+bytemuck = { version = "1.14", features = ["derive"] }
+thiserror = "1.0"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+
+# 测试 / 基准
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+pretty_assertions = "1.4"
+
+# 内部 crate（路径依赖）
+gvpe-math = { path = "crates/gvpe-math", version = "0.1.0" }
+gvpe-core = { path = "crates/gvpe-core", version = "0.1.0" }
+gvpe-memory = { path = "crates/gvpe-memory", version = "0.1.0" }
+
+# 工作空间级 profile
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"  # gvpe-ffi crate 单独覆盖为 "abort"
+strip = true
+
+[profile.release.package."*"]
+# 子 crate 可在各自 Cargo.toml 覆盖
+opt-level = 3
+
+[profile.bench]
+inherits = "release"
+debug = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+
+# 全部 workspace 共享 lint 配置
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "deny"
+missing_docs = "deny"
+rust_2018_idioms = "deny"
+unused_unsafe = "deny"
+non_ascii_idents = "warn"  # 警告不 deny（兼容中文注释）
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+# 特定 clippy lint 放宽（避免过度严苛）
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+similar_names = "allow"
+cast_possible_truncation = "allow"  # f32 -> u32 等显式 cast 由调用方保证
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+cast_lossless = "allow"
+module_inception = "allow"  # 允许子模块与父模块同名

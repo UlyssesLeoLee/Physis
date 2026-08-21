@@ -1,0 +1,169 @@
+# GVPE CI workflow
+# 见 `GVPE-DOC-26` §18.12 + `GVPE-DOC-39` §1
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ========== PR 必跑：核心快速检查 ==========
+  pr-checks:
+    name: PR Checks (Core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          # 锁 MSRV 验证（DEC-001）
+      - name: Install Rust toolchain (MSRV 1.75)
+        uses: dtolnay/rust-toolchain@1.75.0
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: MSRV build check
+        run: |
+          rustup override set 1.75.0
+          cargo +1.75.0 check --workspace --all-features
+          cargo +1.75.0 check --workspace --no-default-features
+          rustup override unset
+
+      - name: Clippy (PR)
+        run: cargo clippy --workspace --all-features --all-targets
+
+      - name: Test (PR — all features)
+        run: cargo test --workspace --all-features
+
+      - name: Test (PR — no default features)
+        run: cargo test --workspace --no-default-features
+
+      - name: cargo tree artifact (AC-02 验证)
+        run: |
+          mkdir -p artifacts
+          cargo tree --workspace --no-dedupe --format "{p} {d}" > artifacts/cargo-tree.txt
+          # 核心 crate 必须不依赖 Graph / Vector / Compiler / Inference / 3DGS
+          cargo tree \
+            -p gvpe-core \
+            -p gvpe-memory \
+            -p gvpe-math \
+            --no-default-features \
+            | tee artifacts/cargo-tree-core.txt
+          if cargo tree \
+             -p gvpe-core \
+             -p gvpe-memory \
+             -p gvpe-math \
+             --no-default-features \
+             | grep -E 'gvpe-(graph|vector|compiler|inference|3dgs)'; then
+            echo "::error::AC-02 violation: core crates depend on Graph/Vector/Compiler/Inference/3DGS"
+            exit 1
+          fi
+          echo "AC-02 OK"
+        shell: bash
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-tree-pr
+          path: artifacts/
+
+  # ========== main 分支：完整检查 ==========
+  full-ci:
+    name: Full CI (main only)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (all features, all targets, deny warnings)
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+      - name: Test (all combinations)
+        run: |
+          cargo test --workspace --all-features
+          cargo test --workspace --no-default-features
+
+      - name: cargo deny check
+        run: |
+          cargo install --locked cargo-deny
+          cargo deny check
+
+      - name: cargo tree artifact (full)
+        run: |
+          mkdir -p artifacts
+          cargo tree --workspace --no-dedupe --format "{p} {d}" > artifacts/cargo-tree.txt
+          if cargo tree --workspace | grep -E 'gvpe-(graph|vector|compiler|inference|3dgs)'; then
+            echo "::error::AC-02 violation"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-tree-full
+          path: artifacts/
+
+  # ========== 跨平台编译验证（main only）==========
+  cross-platform:
+    name: Cross-Platform Build (${{ matrix.os }} / ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --workspace --all-features --target ${{ matrix.target }}
+
+      - name: Test (smoke)
+        run: cargo test --workspace --all-features --target ${{ matrix.target }} -- --test-threads=1

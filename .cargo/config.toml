@@ -1,0 +1,42 @@
+# Cargo configuration for GVPE
+# 见 `GVPE-DOC-26` §18.3 (build) + §18.11 (lint) + §18.12 (CI)
+
+[target.'cfg(all())']
+# 全平台共享
+rustflags = [
+    "-D", "unsafe_op_in_unsafe_fn",
+    "-D", "missing_debug_implementations",
+    "-D", "missing_docs",
+    "-D", "rust_2018_idioms",
+    "-D", "unused_unsafe",
+    # 警告非 deny：non_ascii_idents（兼容中文注释）
+    "-W", "non_ascii_idents",
+]
+
+# dev profile：保留所有 debug 符号 + 增量编译
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+overflow-checks = true
+
+# test profile：同 dev，但保留足够信息给 miri
+[profile.test]
+opt-level = 0
+debug = true
+overflow-checks = true
+
+# bench profile：最大优化
+[profile.bench]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = true
+
+# release profile：thin LTO + 紧凑 + strip
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"  # gvpe-ffi crate 单独覆盖为 "abort"
+strip = true

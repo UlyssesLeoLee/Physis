@@ -1,0 +1,55 @@
+# Build artifacts
+/target/
+**/target/
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+
+# Cargo
+Cargo.lock
+**/Cargo.lock.bak
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# OS
+*~
+*.tmp
+*.bak
+
+# Test artifacts
+coverage/
+*.lcov
+*.profdata
+*.profraw
+flamegraph.svg
+perf.data*
+
+# Build cache
+.sccache/
+.cache/
+
+# Generated docs
+/docs/target/
+/docs/book/
+
+# Local secrets
+.env
+.env.local
+*.local
+
+# miri / sanitizer artifacts
+miri-output/
+sanitizer-output/
+
+# Bench result caches
+critcmp_out/
+bencher-output/

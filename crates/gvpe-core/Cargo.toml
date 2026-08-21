@@ -1,0 +1,20 @@
+[package]
+name = "gvpe-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GVPE 核心类型：句柄、PhysicsProfile、RuntimeDescriptor、错误类型。"
+
+[dependencies]
+gvpe-math = { workspace = true }
+bytemuck = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+deterministic = []  # DEC-006：feature 骨架化
+
+[lints]
+workspace = true

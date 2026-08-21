@@ -1,0 +1,18 @@
+[package]
+name = "gvpe-math"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Self-developed vector / quaternion / matrix / geometry primitives for GVPE (no external math library per PROHIBIT-01)."
+
+[dependencies]
+bytemuck = { workspace = true }
+
+[features]
+default = []
+simd = []  # vendor intrinsics SIMD paths (future, MVP = scalar)
+
+[lints]
+workspace = true

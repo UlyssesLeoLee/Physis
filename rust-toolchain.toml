@@ -1,0 +1,13 @@
+# Rust toolchain pinning for GVPE
+#
+# 通道：使用已安装的 stable（CI 会显式验证 MSRV 1.75）
+# 组件：rustfmt + clippy 必装
+# Targets：先列主要架构，GPU 未来再加
+#
+# MSRV (Minimum Supported Rust Version) 由各 crate 的 Cargo.toml 中
+# `package.rust-version = "1.75"` 强制。CI 会跑 1.75 验证。
+
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
