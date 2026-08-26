@@ -57,7 +57,7 @@ jobs:
       - name: cargo tree artifact (AC-02 验证)
         run: |
           mkdir -p artifacts
-          cargo tree --workspace --no-dedupe --format "{p} {d}" > artifacts/cargo-tree.txt
+          cargo tree --workspace --no-dedupe --format "{p} {f}" > artifacts/cargo-tree.txt
           # 核心 crate 必须不依赖 Graph / Vector / Compiler / Inference / 3DGS
           cargo tree \
             -p gvpe-core \
@@ -119,7 +119,7 @@ jobs:
       - name: cargo tree artifact (full)
         run: |
           mkdir -p artifacts
-          cargo tree --workspace --no-dedupe --format "{p} {d}" > artifacts/cargo-tree.txt
+          cargo tree --workspace --no-dedupe --format "{p} {f}" > artifacts/cargo-tree.txt
           if cargo tree --workspace | grep -E 'gvpe-(graph|vector|compiler|inference|3dgs)'; then
             echo "::error::AC-02 violation"
             exit 1

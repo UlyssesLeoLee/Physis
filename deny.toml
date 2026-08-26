@@ -11,7 +11,6 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-notice = "warn"
 ignore = []
 
 [licenses]
@@ -31,11 +30,9 @@ allow = [
     "BSL-1.0",  # Boost Software License - 评估中
 ]
 confidence-threshold = 0.8
-unlicensed = "deny"
-copyleft = "deny"  # 拒绝 GPL / LGPL / AGPL / SSPL / BUSL
-allow-osi-fsf-free = "neither"
-default = "deny"
-exception = []
+# 严格策略: 不在 allow 列表的 license (含 copyleft GPL/AGPL/LGPL/SSPL/BUSL) 隐式 deny
+# 0.20.x 移除字段: unlicensed / copyleft / default / allow-osi-fsf-free → 统一靠 allow 白名单 + exceptions per-crate
+exceptions = []
 
 [bans]
 multiple-versions = "warn"
