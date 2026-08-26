@@ -1,0 +1,18 @@
+[package]
+name = "gvpe-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Physics Knowledge Graph (PKG) 存储与查询层 (per GVPE-DOC-03). 三类图身份分离 + 编译期禁止热路径查询 (GVPE-GPH-003)."
+
+[dependencies]
+gvpe-math = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true

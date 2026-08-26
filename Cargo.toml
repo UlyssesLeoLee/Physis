@@ -16,7 +16,7 @@ members = [
     # "crates/gvpe-scheduler",
     # "crates/gvpe-runtime",
     "crates/gvpe-ffi",
-    # "crates/gvpe-graph",
+    "crates/gvpe-graph",
     # "crates/gvpe-vector",
     # "crates/gvpe-compiler",
     # "crates/gvpe-inference",
