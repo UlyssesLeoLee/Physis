@@ -60,6 +60,44 @@ impl Mat3 {
         }
     }
 
+    /// 从单位四元数构造旋转矩阵。
+    ///
+    /// `q` 应为单位四元数；非单位四元数得到的是 scaled rotation（每行长度 = |q|²）。
+    /// 矩阵布局与 `Mul<Vec3>` 一致：`M * v` 等价于 `q.rotate_vec3(v)`。
+    #[allow(clippy::many_single_char_names)]
+    #[inline]
+    #[must_use]
+    pub fn from_quat(q: super::Quat) -> Self {
+        // 经典四元数→旋转矩阵公式（行主序）：
+        //   r = 2 / |q|²
+        //   M = [ 1 - r*(y² + z²),     r*(x*y - z*w),     r*(x*z + y*w) ]
+        //       [     r*(x*y + z*w), 1 - r*(x² + z²),     r*(y*z - x*w) ]
+        //       [     r*(x*z - y*w),     r*(y*z + x*w), 1 - r*(x² + y²) ]
+        // 假设 |q|=1 故 r=2
+        let (x, y, z, w) = (q.x, q.y, q.z, q.w);
+        // 用 mul_add 减少算入：xx = 2*x², yy = 2*y², zz = 2*z²
+        let xx = 2.0 * x * x;
+        let yy = 2.0 * y * y;
+        let zz = 2.0 * z * z;
+        let xy = 2.0 * x * y;
+        let xz = 2.0 * x * z;
+        let yz = 2.0 * y * z;
+        let wx = 2.0 * w * x;
+        let wy = 2.0 * w * y;
+        let wz = 2.0 * w * z;
+        Self::new(
+            1.0 - (yy + zz),
+            xy - wz,
+            xz + wy,
+            xy + wz,
+            1.0 - (xx + zz),
+            yz - wx,
+            xz - wy,
+            yz + wx,
+            1.0 - (xx + yy),
+        )
+    }
+
     /// 矩阵 × 向量。
     #[inline]
     #[must_use]

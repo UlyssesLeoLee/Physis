@@ -130,6 +130,46 @@ impl Quat {
         let t = qv.cross(v) * 2.0;
         v + t * self.w + qv.cross(t)
     }
+
+    /// 球面线性插值（SLERP）。
+    ///
+    /// `t ∈ [0, 1]`：`t = 0` 返回 `a`，`t = 1` 返回 `b`。
+    /// 当 `dot(a, b) < 0` 时对 `b` 取反，走较短弧。
+    /// 当 `dot(a, b) ≈ 1`（几乎同向）时退化为 nlerp（normalised lerp），避免 `sin(θ) ≈ 0` 除零。
+    /// 假设 `a`、`b` 是单位四元数（构造 API 默认保证）。
+    #[allow(clippy::many_single_char_names)]
+    #[inline]
+    #[must_use]
+    pub fn slerp(a: Self, b: Self, t: f32) -> Self {
+        let mut dot = a.x.mul_add(b.x, a.y.mul_add(b.y, a.z.mul_add(b.z, a.w * b.w)));
+        // 走较短弧：dot < 0 时取反 b
+        let b = if dot < 0.0 {
+            dot = -dot;
+            Self::new(-b.x, -b.y, -b.z, -b.w)
+        } else {
+            b
+        };
+        // 接近 1：避免除零，退化为 nlerp
+        if dot > 0.9995 {
+            let r = Self::new(
+                (b.x - a.x).mul_add(t, a.x),
+                (b.y - a.y).mul_add(t, a.y),
+                (b.z - a.z).mul_add(t, a.z),
+                (b.w - a.w).mul_add(t, a.w),
+            );
+            return r.normalize();
+        }
+        let theta = dot.clamp(-1.0, 1.0).acos();
+        let sin_theta = theta.sin();
+        let s1 = ((1.0 - t) * theta).sin() / sin_theta;
+        let s2 = (t * theta).sin() / sin_theta;
+        Self::new(
+            a.x.mul_add(s1, b.x * s2),
+            a.y.mul_add(s1, b.y * s2),
+            a.z.mul_add(s1, b.z * s2),
+            a.w.mul_add(s1, b.w * s2),
+        )
+    }
 }
 
 // 注：`Quat` 与 `f32` 的乘法 / 除法未实现（语义不明确）。
