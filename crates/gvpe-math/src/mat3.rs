@@ -60,6 +60,32 @@ impl Mat3 {
         }
     }
 
+    /// 构造对角矩阵，非对角元素 = 0。
+    ///
+    /// 行优先存储：`m.m[0][0] = diag.x`，`m.m[1][1] = diag.y`，`m.m[2][2] = diag.z`。
+    /// 满足 `m * Vec3(x, y, z) == Vec3(diag.x * x, diag.y * y, diag.z * z)`（逐分量缩放）。
+    #[inline]
+    #[must_use]
+    pub const fn from_diagonal(diag: super::Vec3) -> Self {
+        Self::new(diag.x, 0.0, 0.0, 0.0, diag.y, 0.0, 0.0, 0.0, diag.z)
+    }
+
+    /// 由三条基轴构造矩阵。
+    ///
+    /// **约定：列向量**（与 [`Mat3::mul_vec3`] 一致，即 `m * v = m.x * v.x + m.y * v.y + m.z * v.z`）。
+    /// 行优先存储实现为：
+    /// ```text
+    /// | x.x y.x z.x |
+    /// | x.y y.y z.y |
+    /// | x.z y.z z.z |
+    /// ```
+    /// 调用方对输入是否归一化不假设；`x`、`y`、`z` 彼此正交时是标准旋转 / 坐标系矩阵。
+    #[inline]
+    #[must_use]
+    pub const fn from_basis(x: super::Vec3, y: super::Vec3, z: super::Vec3) -> Self {
+        Self::new(x.x, y.x, z.x, x.y, y.y, z.y, x.z, y.z, z.z)
+    }
+
     /// 从单位四元数构造旋转矩阵。
     ///
     /// `q` 应为单位四元数；非单位四元数得到的是 scaled rotation（每行长度 = |q|²）。

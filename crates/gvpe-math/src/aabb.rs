@@ -39,6 +39,23 @@ impl Aabb {
         Self::new(p, p)
     }
 
+    /// 从点切片构造包含所有点的 AABB。
+    ///
+    /// **空切片返回 `None`**（工程做法：不允许零大小 AABB）。
+    /// **单点**返回零体积 AABB（等价于 [`Aabb::from_point`]）。
+    /// **多点**返回各分量取 `min` / `max` 的 AABB。
+    #[must_use]
+    pub fn from_points(pts: &[super::Vec3]) -> Option<Self> {
+        let first = *pts.first()?;
+        let mut min = first;
+        let mut max = first;
+        for &p in &pts[1..] {
+            min = super::Vec3::new(min.x.min(p.x), min.y.min(p.y), min.z.min(p.z));
+            max = super::Vec3::new(max.x.max(p.x), max.y.max(p.y), max.z.max(p.z));
+        }
+        Some(Self::new(min, max))
+    }
+
     /// 从中心 + 半尺寸构造。
     #[inline]
     #[must_use]

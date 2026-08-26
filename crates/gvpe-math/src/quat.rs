@@ -131,6 +131,80 @@ impl Quat {
         v + t * self.w + qv.cross(t)
     }
 
+    /// 从 Tait-Bryan 欧拉角（YPR）构造四元数。
+    ///
+    /// **约定**：Z-Y-X intrinsic（先绕 fixed-Z = `yaw`，再绕 fixed-Y = `pitch`，
+    /// 再绕 fixed-X = `roll`，全部弧度）。
+    /// 实现等价于 `Quat::from_axis_angle(Vec3::Z, yaw) * from_axis_angle(Vec3::Y, pitch) * from_axis_angle(Vec3::X, roll)`。
+    /// 单位：弧度；输入不做归一化。
+    /// **注意**：gimbal lock（`pitch = ±π/2`）时不做特判，结果可能含 NaN；
+    /// 调用方若需鲁棒性应在外层检查。配套逆运算见 [`Quat::to_euler_ypr`]。
+    #[allow(clippy::many_single_char_names)]
+    #[inline]
+    #[must_use]
+    pub fn from_euler_ypr(yaw: f32, pitch: f32, roll: f32) -> Self {
+        // 用三角乘法（half-angle），gimbal lock 不爆 NaN。
+        // q = q_z(yaw) * q_y(pitch) * q_x(roll) 展开后：
+        //   x = cy*cp*sr - sy*sp*cr
+        //   y = cy*sp*cr + sy*cp*sr
+        //   z = sy*cp*cr - cy*sp*sr
+        //   w = cy*cp*cr + sy*sp*sr
+        let (sy, cy) = (yaw * 0.5).sin_cos();
+        let (sp, cp) = (pitch * 0.5).sin_cos();
+        let (sr, cr) = (roll * 0.5).sin_cos();
+        Self::new(
+            cy.mul_add(cp * sr, -(sy * sp * cr)),
+            cy.mul_add(sp * cr, sy * cp * sr),
+            sy.mul_add(cp * cr, -(cy * sp * sr)),
+            cy.mul_add(cp * cr, sy * sp * sr),
+        )
+    }
+
+    /// 四元数 → Tait-Bryan 欧拉角（YPR）。
+    ///
+    /// **约定**：Z-Y-X intrinsic（与 [`Quat::from_euler_ypr`] 对偶），返回 `[yaw, pitch, roll]`，全部弧度。
+    /// 在 `|sin(pitch)| >= 1`（gimbal lock）时设 `pitch = ±π/2`，yaw/roll 置 0（可读性优先，不做 branchless 优化）。
+    #[inline]
+    #[must_use]
+    pub fn to_euler_ypr(self) -> [f32; 3] {
+        // 标准 Z-Y-X intrinsic 公式：
+        //   sinp = 2*(w*y - z*x)
+        //   pitch = asin(clamp(sinp, -1, 1))
+        //   yaw   = atan2(2*(w*z + x*y), 1 - 2*(y² + z²))
+        //   roll  = atan2(2*(w*x + y*z), 1 - 2*(x² + y²))
+        let sinp = (2.0 * self.w).mul_add(self.y, -(2.0 * self.z * self.x));
+        let sinp_clamped = sinp.clamp(-1.0, 1.0);
+        if sinp_clamped.abs() >= 1.0 {
+            // gimbal lock：pitch = ±π/2，yaw/roll 折叠到 0
+            let pitch = if sinp > 0.0 {
+                core::f32::consts::FRAC_PI_2
+            } else {
+                -core::f32::consts::FRAC_PI_2
+            };
+            return [0.0, pitch, 0.0];
+        }
+        let pitch = sinp_clamped.asin();
+        let yz_sq = self.y.mul_add(self.y, self.z * self.z);
+        let num_yaw = (2.0 * self.w).mul_add(self.z, 2.0 * self.x * self.y);
+        let denom_yaw = (-2.0_f32).mul_add(yz_sq, 1.0);
+        let yaw = num_yaw.atan2(denom_yaw);
+        let xy_sq = self.x.mul_add(self.x, self.y * self.y);
+        let num_roll = (2.0 * self.w).mul_add(self.x, 2.0 * self.y * self.z);
+        let denom_roll = (-2.0_f32).mul_add(xy_sq, 1.0);
+        let roll = num_roll.atan2(denom_roll);
+        [yaw, pitch, roll]
+    }
+
+    /// 四元数 → 3x3 旋转矩阵（[`Mat3::from_quat`] 的镜像）。
+    ///
+    /// 等价于 `Mat3::from_quat(self)`：复用 [`Mat3::from_quat`] 的实现，零重复代码。
+    /// 满足 `m.mul_vec3(v) == self.rotate_vec3(v)`。
+    #[inline]
+    #[must_use]
+    pub fn to_mat3(self) -> super::Mat3 {
+        super::Mat3::from_quat(self)
+    }
+
     /// 球面线性插值（SLERP）。
     ///
     /// `t ∈ [0, 1]`：`t = 0` 返回 `a`，`t = 1` 返回 `b`。

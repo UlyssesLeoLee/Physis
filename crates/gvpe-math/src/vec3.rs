@@ -59,6 +59,13 @@ impl Vec3 {
         Self { x, y, z }
     }
 
+    /// 三分量都填 `v`。
+    #[inline]
+    #[must_use]
+    pub const fn splat(v: f32) -> Self {
+        Self { x: v, y: v, z: v }
+    }
+
     /// 全部分量为 0。
     #[inline]
     #[must_use]
@@ -96,6 +103,20 @@ impl Vec3 {
     #[must_use]
     pub fn length(self) -> f32 {
         self.length_squared().sqrt()
+    }
+
+    /// 距离平方（避免开方）。
+    #[inline]
+    #[must_use]
+    pub fn distance_squared(self, other: Self) -> f32 {
+        (self - other).length_squared()
+    }
+
+    /// 欧氏距离。
+    #[inline]
+    #[must_use]
+    pub fn distance(self, other: Self) -> f32 {
+        self.distance_squared(other).sqrt()
     }
 
     /// 归一化；零向量返回 `Vec3::ZERO`。
