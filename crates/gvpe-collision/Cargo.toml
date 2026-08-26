@@ -1,0 +1,23 @@
+[package]
+name = "gvpe-collision"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GVPE 碰撞检测：粗筛（Sweep-and-Prune）+ 精筛（GJK + EPA）+ 接触流形生成。"
+
+[dependencies]
+gvpe-core = { workspace = true }
+gvpe-math = { workspace = true }
+# gvpe-memory：v0.7 暂不直接使用（broad/narrow phase 内部用 `Vec` 暂存候选对），
+# 留待 v0.8+ 集成 arena/slab 做"零分配热路径"时再实际消费。
+gvpe-memory = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+deterministic = []  # DEC-006: 与 gvpe-memory 对齐，碰撞输出跨平台可复现
+
+[lints]
+workspace = true
