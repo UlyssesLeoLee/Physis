@@ -12,24 +12,44 @@ use crate::profile::PhysicsProfile;
 /// 此处为占位 enum，待 `gvpe-shape` 实现后替换为完整版本。
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ShapeDesc {
-    Sphere { radius: f32 },
-    Box3 { half_extents: [f32; 3] },
-    Plane { normal: [f32; 3], offset: f32 },
+    /// 球体。
+    Sphere {
+        /// 球半径。
+        radius: f32,
+    },
+    /// 盒。
+    Box3 {
+        /// 半尺寸 (x, y, z)。
+        half_extents: [f32; 3],
+    },
+    /// 平面。
+    Plane {
+        /// 平面法线（归一化）。
+        normal: [f32; 3],
+        /// 平面到原点的有符号偏移。
+        offset: f32,
+    },
 }
 
 /// 初始变换（位置 + 旋转）。
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InitialTransform {
+    /// 初始平移。
     pub translation: Vec3,
-    pub rotation_yaw_pitch_roll: [f32; 3], // 简化：yaw / pitch / roll
+    /// 初始旋转（简化：yaw / pitch / roll，弧度）。
+    pub rotation_yaw_pitch_roll: [f32; 3],
 }
 
 /// Body 规格（场景加载时使用）。
 #[derive(Clone, Debug)]
 pub struct BodySpec {
+    /// 形状描述。
     pub shape: ShapeDesc,
+    /// 初始变换。
     pub initial_transform: InitialTransform,
+    /// 物理 profile。
     pub profile: PhysicsProfile,
+    /// 是否为静态 body（mass = 0）。
     pub is_static: bool,
 }
 

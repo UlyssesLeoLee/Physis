@@ -11,8 +11,11 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct Vec3 {
+    /// x 分量。
     pub x: f32,
+    /// y 分量。
     pub y: f32,
+    /// z 分量。
     pub z: f32,
 }
 
@@ -22,16 +25,32 @@ unsafe impl Zeroable for Vec3 {}
 
 impl Vec3 {
     /// 零向量。
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     /// 单位向量 (1, 0, 0)。
-    pub const X: Self = Self { x: 1.0, y: 0.0, z: 0.0 };
+    pub const X: Self = Self {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     /// 单位向量 (0, 1, 0)。
-    pub const Y: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const Y: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
     /// 单位向量 (0, 0, 1)。
-    pub const Z: Self = Self { x: 0.0, y: 0.0, z: 1.0 };
+    pub const Z: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    };
 
     /// 构造新向量。
     #[inline]

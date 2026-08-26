@@ -57,3 +57,6 @@ bencher-output/
 # Stray cargo build/check output (failed background runs)
 check*.out.txt
 check*.err.txt
+
+# Transient local verification logs (cargo build / test / clippy / fmt / tree output)
+*.log

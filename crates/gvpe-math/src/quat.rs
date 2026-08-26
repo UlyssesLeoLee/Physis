@@ -11,9 +11,13 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C, align(16))]
 pub struct Quat {
+    /// 四元数 x 分量（虚部 i）。
     pub x: f32,
+    /// 四元数 y 分量（虚部 j）。
     pub y: f32,
+    /// 四元数 z 分量（虚部 k）。
     pub z: f32,
+    /// 四元数 w 分量（实部）。
     pub w: f32,
 }
 
@@ -23,7 +27,12 @@ unsafe impl Zeroable for Quat {}
 
 impl Quat {
     /// 单位四元数（无旋转）。
-    pub const IDENTITY: Self = Self { x: 0.0, y: 0.0, z: 0.0, w: 1.0 };
+    pub const IDENTITY: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 1.0,
+    };
 
     /// 构造新四元数。
     #[inline]
@@ -66,7 +75,12 @@ impl Quat {
             return Self::IDENTITY;
         }
         let inv_len = 1.0 / len_sq.sqrt();
-        Self::new(self.x * inv_len, self.y * inv_len, self.z * inv_len, self.w * inv_len)
+        Self::new(
+            self.x * inv_len,
+            self.y * inv_len,
+            self.z * inv_len,
+            self.w * inv_len,
+        )
     }
 
     /// Hamilton 积。

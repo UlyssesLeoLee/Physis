@@ -9,7 +9,9 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct BodyHandle {
+    /// body 索引（slot 编号）。
     pub index: u32,
+    /// 世代号（free 时自增，用于 use-after-free 检测）。
     pub generation: u32,
 }
 
@@ -19,7 +21,10 @@ unsafe impl Zeroable for BodyHandle {}
 
 impl BodyHandle {
     /// 无效句柄（index=0, generation=0）。
-    pub const INVALID: Self = Self { index: 0, generation: 0 };
+    pub const INVALID: Self = Self {
+        index: 0,
+        generation: 0,
+    };
 
     /// 构造新句柄。
     #[inline]
@@ -38,7 +43,9 @@ impl BodyHandle {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct ConstraintHandle {
+    /// constraint 索引。
     pub index: u32,
+    /// 世代号。
     pub generation: u32,
 }
 
@@ -46,13 +53,19 @@ unsafe impl Pod for ConstraintHandle {}
 unsafe impl Zeroable for ConstraintHandle {}
 
 impl ConstraintHandle {
-    pub const INVALID: Self = Self { index: 0, generation: 0 };
+    /// 无效句柄。
+    pub const INVALID: Self = Self {
+        index: 0,
+        generation: 0,
+    };
 
+    /// 构造新句柄。
     #[inline]
     pub const fn new(index: u32, generation: u32) -> Self {
         Self { index, generation }
     }
 
+    /// 是否等于 [`INVALID`](Self::INVALID)。
     #[inline]
     pub fn is_invalid(self) -> bool {
         self == Self::INVALID
@@ -62,19 +75,25 @@ impl ConstraintHandle {
 /// Island 句柄（仅 `u32`，无 generation）。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C)]
-pub struct IslandHandle(pub u32);
+pub struct IslandHandle(
+    /// island 索引（island 在生命周期内不被 free，故无 generation）。
+    pub u32,
+);
 
 unsafe impl Pod for IslandHandle {}
 unsafe impl Zeroable for IslandHandle {}
 
 impl IslandHandle {
+    /// 无效 island 句柄。
     pub const INVALID: Self = Self(0);
 
+    /// 构造新 island 句柄。
     #[inline]
     pub const fn new(index: u32) -> Self {
         Self(index)
     }
 
+    /// 是否等于 [`INVALID`](Self::INVALID)。
     #[inline]
     pub fn is_invalid(self) -> bool {
         self == Self::INVALID

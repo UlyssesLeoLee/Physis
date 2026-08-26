@@ -6,8 +6,5 @@
 
 msrv = "1.75"
 
-# 单行最大长度（与 rustfmt 一致）
-too-long-arg-threshold = { single-arg = false }
-
-# 文档必须显式列出 panic 条件（仅当函数可能 panic 时）
+# 文档允许的特殊标识符（避免 clippy::doc_markdown 误报）
 doc-valid-idents = ["NaN", "Inf", "MVP", "ISA", "FFI", "SIMD", "SI", "PGS", "XPBD", "CCD", "SAP", "SAT", "GJK", "EPA", "PBD", "AABB", "SoA", "AoSoA", "POD", "JIT", "TDD", "GCN", "OMP", "DOD", "HPC", "FMA", "NDA", "CRUD", "API", "ABI", "FIFO", "LIFO", "URI", "URL", "ASCII", "UTF", "PCG", "RNG", "LFSR"]

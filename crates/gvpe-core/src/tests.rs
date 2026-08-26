@@ -1,7 +1,7 @@
 //! `gvpe-core` 单元测试。
 
 use crate::{
-    BodyHandle, BodySpec, ConstraintHandle, CoreError, IslandHandle, InitialTransform,
+    BodyHandle, BodySpec, ConstraintHandle, CoreError, InitialTransform, IslandHandle,
     PhysicsLodTag, PhysicsProfile, RuntimeDescriptor, ShapeDesc, SolverTypeId,
 };
 use gvpe_math::Vec3;
@@ -28,7 +28,7 @@ fn body_handle_invalid_detection() {
 
 #[test]
 fn constraint_handle_size() {
-    use std::mem::{align_of, size_of};
+    use std::mem::size_of;
     assert_eq!(size_of::<ConstraintHandle>(), 8);
 }
 
@@ -50,7 +50,11 @@ fn physics_profile_size() {
     // 但 align 4，可能有 padding：
     //   mass(4) + density(4) + inertia(36) + friction(4) + restitution(4) + damping_linear(4) + damping_angular(4) + stiffness(4) + compliance(4) + viscosity(4) + solver_type(1) + [pad 1] + solver_iterations(2) + collision_profile(1) + approximation_level(1) + padding(1) = 80 字节
     let size = size_of::<PhysicsProfile>();
-    assert!(size >= 78 && size <= 84, "PhysicsProfile size = {} (expected 78-84)", size);
+    assert!(
+        size >= 78 && size <= 84,
+        "PhysicsProfile size = {} (expected 78-84)",
+        size
+    );
     assert_eq!(align_of::<PhysicsProfile>(), 4);
 }
 
@@ -111,6 +115,9 @@ fn core_error_display() {
     let e = CoreError::DescriptorEmpty;
     assert_eq!(format!("{}", e), "RuntimeDescriptor 为空");
 
-    let e = CoreError::ProfileInconsistent { field: "mass", value: -1.0 };
+    let e = CoreError::ProfileInconsistent {
+        field: "mass",
+        value: -1.0,
+    };
     assert!(format!("{}", e).contains("mass"));
 }

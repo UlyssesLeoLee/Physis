@@ -13,6 +13,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 pub struct Mat3 {
+    /// 3 行，每行是一个 `Vec3`（行优先存储）。
     pub m: [super::Vec3; 3],
 }
 
@@ -22,7 +23,9 @@ unsafe impl Zeroable for Mat3 {}
 
 impl Mat3 {
     /// 零矩阵。
-    pub const ZERO: Self = Self { m: [super::Vec3::ZERO; 3] };
+    pub const ZERO: Self = Self {
+        m: [super::Vec3::ZERO; 3],
+    };
 
     /// 单位矩阵。
     pub const IDENTITY: Self = Self {
@@ -35,7 +38,17 @@ impl Mat3 {
 
     /// 构造新矩阵（行优先）。
     #[inline]
-    pub const fn new(m11: f32, m12: f32, m13: f32, m21: f32, m22: f32, m23: f32, m31: f32, m32: f32, m33: f32) -> Self {
+    pub const fn new(
+        m11: f32,
+        m12: f32,
+        m13: f32,
+        m21: f32,
+        m22: f32,
+        m23: f32,
+        m31: f32,
+        m32: f32,
+        m33: f32,
+    ) -> Self {
         Self {
             m: [
                 super::Vec3::new(m11, m12, m13),
@@ -71,9 +84,15 @@ impl Mat3 {
     #[inline]
     pub fn transpose(self) -> Self {
         Self::new(
-            self.m[0].x, self.m[1].x, self.m[2].x,
-            self.m[0].y, self.m[1].y, self.m[2].y,
-            self.m[0].z, self.m[1].z, self.m[2].z,
+            self.m[0].x,
+            self.m[1].x,
+            self.m[2].x,
+            self.m[0].y,
+            self.m[1].y,
+            self.m[2].y,
+            self.m[0].z,
+            self.m[1].z,
+            self.m[2].z,
         )
     }
 
@@ -82,9 +101,15 @@ impl Mat3 {
     /// 返回 `None` 表示矩阵奇异。
     pub fn inverse(self) -> Option<Self> {
         let m = &self.m;
-        let a = m[0].x; let b = m[0].y; let c = m[0].z;
-        let d = m[1].x; let e = m[1].y; let f = m[1].z;
-        let g = m[2].x; let h = m[2].y; let i = m[2].z;
+        let a = m[0].x;
+        let b = m[0].y;
+        let c = m[0].z;
+        let d = m[1].x;
+        let e = m[1].y;
+        let f = m[1].z;
+        let g = m[2].x;
+        let h = m[2].y;
+        let i = m[2].z;
 
         let det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
         if det.abs() < f32::EPSILON {

@@ -8,7 +8,9 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 pub struct Aabb {
+    /// AABB 最小角点。
     pub min: super::Vec3,
+    /// AABB 最大角点。
     pub max: super::Vec3,
 }
 
@@ -18,7 +20,10 @@ unsafe impl Zeroable for Aabb {}
 
 impl Aabb {
     /// 零体积 AABB（min = max = (0, 0, 0)）。
-    pub const ZERO: Self = Self { min: super::Vec3::ZERO, max: super::Vec3::ZERO };
+    pub const ZERO: Self = Self {
+        min: super::Vec3::ZERO,
+        max: super::Vec3::ZERO,
+    };
 
     /// 构造新 AABB。
     #[inline]
@@ -64,9 +69,12 @@ impl Aabb {
     /// 是否包含点。
     #[inline]
     pub fn contains(self, p: super::Vec3) -> bool {
-        p.x >= self.min.x && p.x <= self.max.x
-            && p.y >= self.min.y && p.y <= self.max.y
-            && p.z >= self.min.z && p.z <= self.max.z
+        p.x >= self.min.x
+            && p.x <= self.max.x
+            && p.y >= self.min.y
+            && p.y <= self.max.y
+            && p.z >= self.min.z
+            && p.z <= self.max.z
     }
 
     /// 扩展 AABB 以包含给定点。

@@ -19,11 +19,19 @@ pub enum CoreError {
 
     /// `PhysicsProfile` 必填字段缺失。
     #[error("PhysicsProfile 必填字段缺失: {field}")]
-    ProfileMissingField { field: &'static str },
+    ProfileMissingField {
+        /// 缺失字段名。
+        field: &'static str,
+    },
 
     /// `PhysicsProfile` 字段值违反不变式（如 mass ≤ 0 且非 static）。
     #[error("PhysicsProfile 字段值违反不变式: {field} = {value}")]
-    ProfileInconsistent { field: &'static str, value: f32 },
+    ProfileInconsistent {
+        /// 违反不变式的字段名。
+        field: &'static str,
+        /// 实际值。
+        value: f32,
+    },
 
     /// `RuntimeDescriptor` 无 body。
     #[error("RuntimeDescriptor 为空")]
@@ -35,4 +43,5 @@ pub enum CoreError {
 }
 
 /// 核心 crate 使用的 `Result` 类型别名。
+#[allow(dead_code)]
 pub type CoreResult<T> = Result<T, CoreError>;

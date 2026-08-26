@@ -58,7 +58,7 @@ cargo test --workspace
 - `Quat` size = 16 bytes, align = 16（SIMD 友好）
 - `Mat3` size = 36 bytes, align = 4
 - `Aabb` size = 24 bytes, align = 4
-- `Transform` size = 28 bytes, align = 16
+- `Transform` size = 32 bytes, align = 16（Vec3(12) + 4 字节 padding + Quat(16)）
 - `BodyHandle` size = 8 bytes, align = 4
 - `ConstraintHandle` size = 8 bytes, align = 4
 - `IslandHandle` size = 4 bytes, align = 4

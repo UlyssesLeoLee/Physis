@@ -26,9 +26,9 @@ mod arena;
 mod pool;
 mod slab;
 
-pub use arena::Arena;
-pub use pool::Pool;
-pub use slab::Slab;
+pub use arena::{Arena, ArenaError};
+pub use pool::{Pool, PoolError};
+pub use slab::{Slab, SlabError, SlabHandle};
 
 #[cfg(test)]
 mod tests;

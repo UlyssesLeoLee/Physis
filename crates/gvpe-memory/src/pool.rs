@@ -101,3 +101,13 @@ impl<T> Default for Pool<T> {
         Self::new()
     }
 }
+
+impl<T> core::fmt::Debug for Pool<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Pool")
+            .field("active", &self.active_count())
+            .field("capacity", &self.slots.len())
+            .field("free_list_len", &self.free_list.len())
+            .finish()
+    }
+}

@@ -9,7 +9,12 @@ use thiserror::Error;
 pub enum SlabError {
     /// 槽位已 free / 句柄世代不匹配。
     #[error("slab handle 世代不匹配: expected {expected}, got {got}")]
-    GenerationMismatch { expected: u32, got: u32 },
+    GenerationMismatch {
+        /// 当前 slot 的 generation（句柄释放后已自增）。
+        expected: u32,
+        /// 句柄携带的 generation（来自调用方）。
+        got: u32,
+    },
 
     /// 槽位索引越界。
     #[error("slab index {0} 越界 (len = {1})")]
@@ -19,12 +24,18 @@ pub enum SlabError {
 /// 句柄 + 世代（与 [`gvpe-core::BodyHandle`] 同形，但本 crate 不依赖 gvpe-core 以保持解耦）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SlabHandle {
+    /// slot 索引。
     pub index: u32,
+    /// 世代号（free 时自增，用于 use-after-free 检测）。
     pub generation: u32,
 }
 
 impl SlabHandle {
-    pub const INVALID: Self = Self { index: 0, generation: 0 };
+    /// 无效句柄（index = 0, generation = 0）。用作 `Option<SlabHandle>` 的 None 替代。
+    pub const INVALID: Self = Self {
+        index: 0,
+        generation: 0,
+    };
 }
 
 /// 槽位内部状态。
@@ -61,11 +72,20 @@ impl<T> Slab<T> {
         if let Some(idx) = self.free_list.pop() {
             let i = idx as usize;
             self.slots[i].data = Some(val);
-            SlabHandle { index: idx, generation: self.slots[i].generation }
+            SlabHandle {
+                index: idx,
+                generation: self.slots[i].generation,
+            }
         } else {
             let idx = self.slots.len() as u32;
-            self.slots.push(Slot { data: Some(val), generation: 0 });
-            SlabHandle { index: idx, generation: 0 }
+            self.slots.push(Slot {
+                data: Some(val),
+                generation: 0,
+            });
+            SlabHandle {
+                index: idx,
+                generation: 0,
+            }
         }
     }
 
@@ -99,10 +119,13 @@ impl<T> Slab<T> {
                 got: handle.generation,
             });
         }
-        self.slots[i].data.as_ref().ok_or(SlabError::GenerationMismatch {
-            expected: self.slots[i].generation,
-            got: handle.generation,
-        })
+        self.slots[i]
+            .data
+            .as_ref()
+            .ok_or(SlabError::GenerationMismatch {
+                expected: self.slots[i].generation,
+                got: handle.generation,
+            })
     }
 
     /// 可变借用。
@@ -111,16 +134,21 @@ impl<T> Slab<T> {
         if i >= self.slots.len() {
             return Err(SlabError::OutOfBounds(i, self.slots.len()));
         }
-        if self.slots[i].generation != handle.generation {
+        // 提前拷贝 generation，避免 `as_mut` 与 `&self.slots[i].generation` 借用冲突。
+        let expected_generation = self.slots[i].generation;
+        if expected_generation != handle.generation {
             return Err(SlabError::GenerationMismatch {
-                expected: self.slots[i].generation,
+                expected: expected_generation,
                 got: handle.generation,
             });
         }
-        self.slots[i].data.as_mut().ok_or(SlabError::GenerationMismatch {
-            expected: self.slots[i].generation,
-            got: handle.generation,
-        })
+        self.slots[i]
+            .data
+            .as_mut()
+            .ok_or(SlabError::GenerationMismatch {
+                expected: expected_generation,
+                got: handle.generation,
+            })
     }
 
     /// 容量（slot 总数）。
@@ -137,5 +165,15 @@ impl<T> Slab<T> {
 impl<T> Default for Slab<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T> core::fmt::Debug for Slab<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Slab")
+            .field("active", &self.active_count())
+            .field("capacity", &self.slots.len())
+            .field("free_list_len", &self.free_list.len())
+            .finish()
     }
 }

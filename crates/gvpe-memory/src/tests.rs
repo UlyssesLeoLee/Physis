@@ -1,6 +1,6 @@
 //! `gvpe-memory` 单元测试。
 
-use crate::{Arena, Pool, Slab, SlabHandle};
+use crate::{Arena, Pool, Slab};
 
 // ============================================================================
 // Arena 测试

@@ -132,8 +132,14 @@ fn mat3_singular_returns_none() {
 #[test]
 fn transform_size_and_alignment() {
     use std::mem::{align_of, size_of};
-    assert_eq!(size_of::<Transform>(), 28);
-    assert_eq!(align_of::<Transform>(), 16, "Transform 应 16 字节对齐以支持 SIMD");
+    // 布局：Vec3(12) + padding(4, 凑齐 16 字节对齐) + Quat(16) = 32 字节。
+    // `rotation` 需要 16 字节对齐以支持 SIMD 优化，故必须插入 4 字节 padding。
+    assert_eq!(size_of::<Transform>(), 32);
+    assert_eq!(
+        align_of::<Transform>(),
+        16,
+        "Transform 应 16 字节对齐以支持 SIMD"
+    );
 }
 
 #[test]

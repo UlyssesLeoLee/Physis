@@ -13,7 +13,12 @@ use thiserror::Error;
 pub enum ArenaError {
     /// 预分配耗尽。
     #[error("arena overflow: need {needed} bytes, available {available}")]
-    Overflow { needed: usize, available: usize },
+    Overflow {
+        /// 已尝试分配的总字节数（含对齐 padding）。
+        needed: usize,
+        /// 当前 `Arena` 剩余可用字节数。
+        available: usize,
+    },
 }
 
 /// `Arena<T>`：bump allocator。
@@ -26,8 +31,10 @@ pub struct Arena {
 
 // SAFETY: `Arena` 设计为线程局部（每个 worker 一个），不跨线程共享。
 // 若需要跨线程，应使用 thread-local 或显式 `&mut self`。
-unsafe impl<T: Send> Send for Arena {}
-unsafe impl<T: Sync> Sync for Arena {}
+// `Arena` 自身不含泛型参数 `T`（分配时由调用方指定 `T`），所以 `Send`/`Sync` 只需声明
+// 内部存储（`Vec<u8>` 自身已是 `Send + Sync`）即可。
+unsafe impl Send for Arena {}
+unsafe impl Sync for Arena {}
 
 impl Arena {
     /// 构造指定容量的 arena。
@@ -44,7 +51,10 @@ impl Arena {
     ///
     /// 调用方必须保证：
     /// - `T` 写入时不会 panic（如 `T: Copy` 或不调用 `Drop`）；
-    /// - 不持有跨 `reset()` 调用的引用。
+    /// - 不持有跨 `reset()` 调用的引用；
+    /// - **单线程访问**（`Arena` 自身 `Send + Sync` 仅用于 `thread_local!` 的类型约束，
+    ///   不表示内部可变状态是线程安全的；多线程共享需外层同步或每个 worker 独立 `Arena`）。
+    #[allow(clippy::mut_from_ref)]
     pub fn alloc<T>(&self, val: T) -> Result<&mut T, ArenaError> {
         let size = core::mem::size_of::<T>();
         let align = core::mem::align_of::<T>();
@@ -96,5 +106,17 @@ impl Arena {
 impl Default for Arena {
     fn default() -> Self {
         Self::with_capacity(64 * 1024) // 默认 64 KB
+    }
+}
+
+impl core::fmt::Debug for Arena {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // SAFETY: 单线程使用，读 cursor 与 buf.len() 是只读操作。
+        let used = unsafe { *self.cursor.get() };
+        let cap = unsafe { (*self.buf.get()).capacity() };
+        f.debug_struct("Arena")
+            .field("used", &used)
+            .field("capacity", &cap)
+            .finish()
     }
 }

@@ -1,18 +1,21 @@
-//! `Transform`：平移 + 旋转（compact，28 字节）。
+//! `Transform`：平移 + 旋转（compact，32 字节）。
 
 use bytemuck::{Pod, Zeroable};
 
 /// 紧凑变换：平移 + 旋转（无缩放）。
 ///
-/// 28 字节；`rotation` 16 字节对齐（SIMD 友好）。
+/// 32 字节：Vec3(12) + 4 字节 padding + Quat(16)；`rotation` 16 字节对齐（SIMD 友好）。
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 pub struct Transform {
+    /// 平移分量（世界坐标）。
     pub translation: super::Vec3,
+    /// 旋转分量（围绕原点）。
     pub rotation: super::Quat,
 }
 
-// SAFETY: 紧凑布局，`translation` 12 字节后 4 字节 padding 补齐 `rotation` 起始至 16。
+// SAFETY: `Vec3` 12 字节后由编译器插入 4 字节 padding，将 `rotation` 起始对齐到 16 字节；
+// 整体布局稳定，所有字段为 `Pod`，`bytemuck::Pod` 安全。
 unsafe impl Pod for Transform {}
 unsafe impl Zeroable for Transform {}
 
@@ -26,7 +29,10 @@ impl Transform {
     /// 构造新变换。
     #[inline]
     pub const fn new(translation: super::Vec3, rotation: super::Quat) -> Self {
-        Self { translation, rotation }
+        Self {
+            translation,
+            rotation,
+        }
     }
 
     /// 仅平移。

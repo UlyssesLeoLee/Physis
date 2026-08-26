@@ -21,10 +21,15 @@ pub enum SolverTypeId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PhysicsLodTag {
+    /// LOD 0：全精度物理（每帧完整求解）。
     Lod0Full = 0,
+    /// LOD 1：精简物理（降频 / 简化求解器）。
     Lod1Reduced = 1,
+    /// LOD 2：近似物理（外推 / 拟合）。
     Lod2Approximation = 2,
+    /// LOD 3：缓存行为（外推前一帧结果）。
     Lod3CachedBehavior = 3,
+    /// LOD 4：静态（不求解，仅广播 transform）。
     Lod4Static = 4,
 }
 
@@ -77,7 +82,15 @@ impl PhysicsProfile {
             mass: 1.0,
             density: 1000.0,
             inertia: [
-                1.0 / 6.0, 0.0, 0.0, 0.0, 1.0 / 6.0, 0.0, 0.0, 0.0, 1.0 / 6.0,
+                1.0 / 6.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0 / 6.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0 / 6.0,
             ],
             friction: 0.5,
             restitution: 0.1,
