@@ -24,7 +24,7 @@ pub struct Pool<T> {
 
 impl<T> Pool<T> {
     /// 构造空 pool。
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             slots: Vec::new(),
             free_list: Vec::new(),
@@ -41,7 +41,7 @@ impl<T> Pool<T> {
 
     /// 获取（acquire）一个对象。
     ///
-    /// 若 free_list 有空位，复用；否则扩展。
+    /// 若 `free_list` 有空位，复用；否则扩展。
     pub fn acquire(&mut self, val: T) -> u32 {
         if let Some(idx) = self.free_list.pop() {
             self.slots[idx as usize] = Some(val);

@@ -28,6 +28,7 @@ impl Transform {
 
     /// 构造新变换。
     #[inline]
+    #[must_use]
     pub const fn new(translation: super::Vec3, rotation: super::Quat) -> Self {
         Self {
             translation,
@@ -37,18 +38,21 @@ impl Transform {
 
     /// 仅平移。
     #[inline]
-    pub fn from_translation(translation: super::Vec3) -> Self {
+    #[must_use]
+    pub const fn from_translation(translation: super::Vec3) -> Self {
         Self::new(translation, super::Quat::IDENTITY)
     }
 
     /// 仅旋转（围绕原点）。
     #[inline]
-    pub fn from_rotation(rotation: super::Quat) -> Self {
+    #[must_use]
+    pub const fn from_rotation(rotation: super::Quat) -> Self {
         Self::new(super::Vec3::ZERO, rotation)
     }
 
     /// 应用此变换到向量（先旋转后平移）。
     #[inline]
+    #[must_use]
     pub fn transform_vec3(self, v: super::Vec3) -> super::Vec3 {
         self.rotation.rotate_vec3(v) + self.translation
     }
@@ -58,6 +62,7 @@ impl Transform {
     /// 公式：T^{-1} = (-q* v q, q^{-1}) 其中 v 是 translation。
     /// 简化：先减平移，再反向旋转。
     #[inline]
+    #[must_use]
     pub fn inverse(self) -> Self {
         let inv_rot = self.rotation.conjugate();
         let inv_trans = inv_rot.rotate_vec3(-self.translation);

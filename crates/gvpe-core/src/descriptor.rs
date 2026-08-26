@@ -71,23 +71,18 @@ pub struct RuntimeDescriptor {
 /// 确定性模式。
 ///
 /// MVP 实际行为均为 `BestEffort`（架构区分已就位，详见 DEC-006）。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DeterminismMode {
     /// 性能优先，可能非确定性（libm 差异、SIMD 求和顺序）。
+    #[default]
     BestEffort,
     /// 严格确定性（feature = "deterministic" 开启）。
     Strict,
 }
 
-impl Default for DeterminismMode {
-    fn default() -> Self {
-        Self::BestEffort
-    }
-}
-
 impl RuntimeDescriptor {
     /// 构造空 Runtime。
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             bodies: Vec::new(),
             gravity: Vec3::new(0.0, -9.81, 0.0),

@@ -52,7 +52,7 @@ pub struct Slab<T> {
 
 impl<T> Slab<T> {
     /// 构造空 slab。
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             slots: Vec::new(),
             free_list: Vec::new(),

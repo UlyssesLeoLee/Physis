@@ -54,46 +54,53 @@ impl Vec3 {
 
     /// 构造新向量。
     #[inline]
+    #[must_use]
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
     /// 全部分量为 0。
     #[inline]
+    #[must_use]
     pub const fn zero() -> Self {
         Self::ZERO
     }
 
     /// 点积。
     #[inline]
+    #[must_use]
     pub fn dot(self, rhs: Self) -> f32 {
-        self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
+        self.x.mul_add(rhs.x, self.y.mul_add(rhs.y, self.z * rhs.z))
     }
 
     /// 叉积。
     #[inline]
+    #[must_use]
     pub fn cross(self, rhs: Self) -> Self {
         Self {
-            x: self.y * rhs.z - self.z * rhs.y,
-            y: self.z * rhs.x - self.x * rhs.z,
-            z: self.x * rhs.y - self.y * rhs.x,
+            x: self.y.mul_add(rhs.z, -(self.z * rhs.y)),
+            y: self.z.mul_add(rhs.x, -(self.x * rhs.z)),
+            z: self.x.mul_add(rhs.y, -(self.y * rhs.x)),
         }
     }
 
     /// 长度平方（避免开方）。
     #[inline]
+    #[must_use]
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
     /// 长度。
     #[inline]
+    #[must_use]
     pub fn length(self) -> f32 {
         self.length_squared().sqrt()
     }
 
     /// 归一化；零向量返回 `Vec3::ZERO`。
     #[inline]
+    #[must_use]
     pub fn normalize(self) -> Self {
         let len_sq = self.length_squared();
         if len_sq == 0.0 {
@@ -105,6 +112,7 @@ impl Vec3 {
 
     /// 归一化（带 fast inverse sqrt）。
     #[inline]
+    #[must_use]
     pub fn normalize_fast(self) -> Self {
         let len_sq = self.length_squared();
         if len_sq == 0.0 {

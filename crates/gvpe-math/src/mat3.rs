@@ -38,6 +38,8 @@ impl Mat3 {
 
     /// 构造新矩阵（行优先）。
     #[inline]
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         m11: f32,
         m12: f32,
@@ -60,16 +62,24 @@ impl Mat3 {
 
     /// 矩阵 × 向量。
     #[inline]
+    #[must_use]
     pub fn mul_vec3(self, v: super::Vec3) -> super::Vec3 {
         super::Vec3::new(
-            self.m[0].x * v.x + self.m[0].y * v.y + self.m[0].z * v.z,
-            self.m[1].x * v.x + self.m[1].y * v.y + self.m[1].z * v.z,
-            self.m[2].x * v.x + self.m[2].y * v.y + self.m[2].z * v.z,
+            self.m[0]
+                .x
+                .mul_add(v.x, self.m[0].y.mul_add(v.y, self.m[0].z * v.z)),
+            self.m[1]
+                .x
+                .mul_add(v.x, self.m[1].y.mul_add(v.y, self.m[1].z * v.z)),
+            self.m[2]
+                .x
+                .mul_add(v.x, self.m[2].y.mul_add(v.y, self.m[2].z * v.z)),
         )
     }
 
     /// 矩阵 × 矩阵。
     #[inline]
+    #[must_use]
     pub fn mul_mat3(self, rhs: Self) -> Self {
         Self {
             m: [
@@ -82,7 +92,8 @@ impl Mat3 {
 
     /// 转置。
     #[inline]
-    pub fn transpose(self) -> Self {
+    #[must_use]
+    pub const fn transpose(self) -> Self {
         Self::new(
             self.m[0].x,
             self.m[1].x,
@@ -99,6 +110,8 @@ impl Mat3 {
     /// 求逆（伴随矩阵法 / 行列式）。
     ///
     /// 返回 `None` 表示矩阵奇异。
+    #[allow(clippy::many_single_char_names)]
+    #[must_use]
     pub fn inverse(self) -> Option<Self> {
         let m = &self.m;
         let a = m[0].x;
@@ -111,22 +124,26 @@ impl Mat3 {
         let h = m[2].y;
         let i = m[2].z;
 
-        let det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+        // 行列式 = a(ei - fh) - b(di - fg) + c(dh - eg)
+        let det = a.mul_add(
+            f.mul_add(-h, e * i),
+            c.mul_add(f.mul_add(-g, d * h), -(b * f.mul_add(-g, d * i))),
+        );
         if det.abs() < f32::EPSILON {
             return None;
         }
         let inv_det = 1.0 / det;
 
         Some(Self::new(
-            (e * i - f * h) * inv_det,
-            (c * h - b * i) * inv_det,
-            (b * f - c * e) * inv_det,
-            (f * g - d * i) * inv_det,
-            (a * i - c * g) * inv_det,
-            (c * d - a * f) * inv_det,
-            (d * h - e * g) * inv_det,
-            (b * g - a * h) * inv_det,
-            (a * e - b * d) * inv_det,
+            f.mul_add(-h, e * i) * inv_det,
+            b.mul_add(-i, c * h) * inv_det,
+            c.mul_add(-e, b * f) * inv_det,
+            d.mul_add(-i, f * g) * inv_det,
+            c.mul_add(-g, a * i) * inv_det,
+            a.mul_add(-f, c * d) * inv_det,
+            e.mul_add(-g, d * h) * inv_det,
+            a.mul_add(-h, b * g) * inv_det,
+            b.mul_add(-d, a * e) * inv_det,
         ))
     }
 }

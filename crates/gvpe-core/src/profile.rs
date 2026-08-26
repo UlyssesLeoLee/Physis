@@ -68,10 +68,11 @@ pub struct PhysicsProfile {
     /// 物理 LOD 等级（u8）。
     pub approximation_level: PhysicsLodTag,
     /// 显式 padding（避免编译器 reorder）。
-    pub _padding: [u8; 1],
+    #[allow(dead_code)]
+    pub padding: [u8; 1],
 }
 
-// SAFETY: 所有字段为 `Pod`（f32 / u16 / u8），`_padding` 显式，无隐式 padding。
+// SAFETY: 所有字段为 `Pod`（f32 / u16 / u8），`padding` 显式，无隐式 padding。
 unsafe impl Pod for PhysicsProfile {}
 unsafe impl Zeroable for PhysicsProfile {}
 
@@ -103,7 +104,7 @@ impl PhysicsProfile {
             solver_iterations: 10,
             collision_profile: 0,
             approximation_level: PhysicsLodTag::Lod0Full,
-            _padding: [0],
+            padding: [0],
         }
     }
 

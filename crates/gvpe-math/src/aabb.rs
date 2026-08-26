@@ -27,36 +27,42 @@ impl Aabb {
 
     /// 构造新 AABB。
     #[inline]
+    #[must_use]
     pub const fn new(min: super::Vec3, max: super::Vec3) -> Self {
         Self { min, max }
     }
 
     /// 从单点构造零体积 AABB。
     #[inline]
-    pub fn from_point(p: super::Vec3) -> Self {
+    #[must_use]
+    pub const fn from_point(p: super::Vec3) -> Self {
         Self::new(p, p)
     }
 
     /// 从中心 + 半尺寸构造。
     #[inline]
+    #[must_use]
     pub fn from_center_half_extents(center: super::Vec3, half_extents: super::Vec3) -> Self {
         Self::new(center - half_extents, center + half_extents)
     }
 
     /// 中心。
     #[inline]
+    #[must_use]
     pub fn center(self) -> super::Vec3 {
         (self.min + self.max) * 0.5
     }
 
     /// 半尺寸。
     #[inline]
+    #[must_use]
     pub fn half_extents(self) -> super::Vec3 {
         (self.max - self.min) * 0.5
     }
 
     /// 是否与另一个 AABB 重叠（含边界）。
     #[inline]
+    #[must_use]
     pub fn overlaps(self, other: Self) -> bool {
         self.min.x <= other.max.x
             && self.max.x >= other.min.x
@@ -68,6 +74,7 @@ impl Aabb {
 
     /// 是否包含点。
     #[inline]
+    #[must_use]
     pub fn contains(self, p: super::Vec3) -> bool {
         p.x >= self.min.x
             && p.x <= self.max.x
@@ -79,18 +86,25 @@ impl Aabb {
 
     /// 扩展 AABB 以包含给定点。
     #[inline]
-    pub fn expand_to_include(mut self, p: super::Vec3) -> Self {
-        self.min.x = self.min.x.min(p.x);
-        self.min.y = self.min.y.min(p.y);
-        self.min.z = self.min.z.min(p.z);
-        self.max.x = self.max.x.max(p.x);
-        self.max.y = self.max.y.max(p.y);
-        self.max.z = self.max.z.max(p.z);
-        self
+    #[must_use]
+    pub fn expand_to_include(self, p: super::Vec3) -> Self {
+        Self::new(
+            super::Vec3::new(
+                self.min.x.min(p.x),
+                self.min.y.min(p.y),
+                self.min.z.min(p.z),
+            ),
+            super::Vec3::new(
+                self.max.x.max(p.x),
+                self.max.y.max(p.y),
+                self.max.z.max(p.z),
+            ),
+        )
     }
 
     /// 合并两个 AABB。
     #[inline]
+    #[must_use]
     pub fn merged(self, other: Self) -> Self {
         Self::new(
             super::Vec3::new(

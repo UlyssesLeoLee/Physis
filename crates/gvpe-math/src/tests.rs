@@ -29,8 +29,8 @@ fn vec3_dot_and_cross() {
     let a = Vec3::new(1.0, 0.0, 0.0);
     let b = Vec3::new(0.0, 1.0, 0.0);
 
-    assert_eq!(a.dot(b), 0.0);
-    assert_eq!(a.dot(a), 1.0);
+    assert!(a.dot(b).abs() < 1e-6);
+    assert!((a.dot(a) - 1.0).abs() < 1e-6);
 
     let c = a.cross(b);
     assert_eq!(c, Vec3::new(0.0, 0.0, 1.0));
@@ -61,7 +61,7 @@ fn quat_size_and_alignment() {
 #[test]
 fn quat_identity_is_unit() {
     let q = Quat::IDENTITY;
-    assert_eq!(q.length_squared(), 1.0);
+    assert!((q.length_squared() - 1.0).abs() < 1e-6);
 }
 
 #[test]

@@ -51,9 +51,8 @@ fn physics_profile_size() {
     //   mass(4) + density(4) + inertia(36) + friction(4) + restitution(4) + damping_linear(4) + damping_angular(4) + stiffness(4) + compliance(4) + viscosity(4) + solver_type(1) + [pad 1] + solver_iterations(2) + collision_profile(1) + approximation_level(1) + padding(1) = 80 字节
     let size = size_of::<PhysicsProfile>();
     assert!(
-        size >= 78 && size <= 84,
-        "PhysicsProfile size = {} (expected 78-84)",
-        size
+        (78..=84).contains(&size),
+        "PhysicsProfile size = {size} (expected 78-84)"
     );
     assert_eq!(align_of::<PhysicsProfile>(), 4);
 }
@@ -68,7 +67,7 @@ fn physics_profile_pod() {
 #[test]
 fn physics_profile_default_solid() {
     let p = PhysicsProfile::default_solid();
-    assert_eq!(p.mass, 1.0);
+    assert!((p.mass - 1.0).abs() < 1e-6);
     assert_eq!(p.solver_type, SolverTypeId::SequentialImpulse);
     assert_eq!(p.approximation_level, PhysicsLodTag::Lod0Full);
 }
@@ -76,7 +75,7 @@ fn physics_profile_default_solid() {
 #[test]
 fn physics_profile_default_static() {
     let p = PhysicsProfile::default_static();
-    assert_eq!(p.mass, 0.0);
+    assert!(p.mass.abs() < 1e-6, "static profile mass should be 0.0");
 }
 
 // ============================================================================
@@ -87,7 +86,7 @@ fn physics_profile_default_static() {
 fn runtime_descriptor_empty() {
     let d = RuntimeDescriptor::empty();
     assert_eq!(d.body_count(), 0);
-    assert_eq!(d.gravity.y, -9.81);
+    assert!((d.gravity.y - (-9.81)).abs() < 1e-6);
 }
 
 #[test]
@@ -113,11 +112,11 @@ fn runtime_descriptor_add_body() {
 #[test]
 fn core_error_display() {
     let e = CoreError::DescriptorEmpty;
-    assert_eq!(format!("{}", e), "RuntimeDescriptor 为空");
+    assert_eq!(format!("{e}"), "RuntimeDescriptor 为空");
 
     let e = CoreError::ProfileInconsistent {
         field: "mass",
         value: -1.0,
     };
-    assert!(format!("{}", e).contains("mass"));
+    assert!(format!("{e}").contains("mass"));
 }
