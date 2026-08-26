@@ -289,12 +289,7 @@ impl Quat {
         let s = (2.0_f32).mul_add(1.0 + d, 0.0).sqrt();
         let axis = from_n.cross(to_n);
         let inv_s = 1.0 / s;
-        Self::new(
-            axis.x * inv_s,
-            axis.y * inv_s,
-            axis.z * inv_s,
-            s * 0.5,
-        )
+        Self::new(axis.x * inv_s, axis.y * inv_s, axis.z * inv_s, s * 0.5)
     }
 
     /// Look-at 旋转：返回把 `forward`（世界系）转到 `-Z`（视图系）的旋转四元数。
@@ -343,30 +338,15 @@ impl Quat {
         } else if m00 > m11 && m00 > m22 {
             let s = 2.0 * (1.0_f32).mul_add(m00, -(m11 + m22)).sqrt();
             let s_quarter = 0.25 * s;
-            Self::new(
-                s_quarter,
-                (m01 + m10) / s,
-                (m02 + m20) / s,
-                (m21 - m12) / s,
-            )
+            Self::new(s_quarter, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s)
         } else if m11 > m22 {
             let s = 2.0 * (1.0_f32).mul_add(m11, -(m00 + m22)).sqrt();
             let s_quarter = 0.25 * s;
-            Self::new(
-                (m01 + m10) / s,
-                s_quarter,
-                (m12 + m21) / s,
-                (m02 - m20) / s,
-            )
+            Self::new((m01 + m10) / s, s_quarter, (m12 + m21) / s, (m02 - m20) / s)
         } else {
             let s = 2.0 * (1.0_f32).mul_add(m22, -(m00 + m11)).sqrt();
             let s_quarter = 0.25 * s;
-            Self::new(
-                (m02 + m20) / s,
-                (m12 + m21) / s,
-                s_quarter,
-                (m10 - m01) / s,
-            )
+            Self::new((m02 + m20) / s, (m12 + m21) / s, s_quarter, (m10 - m01) / s)
         }
     }
 }

@@ -537,7 +537,10 @@ fn aabb_intersection_disjoint_returns_none() {
 #[test]
 fn transform_lerp_midpoint() {
     let a = Transform::new(Vec3::ZERO, Quat::IDENTITY);
-    let b = Transform::new(Vec3::new(2.0, 4.0, 6.0), Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI));
+    let b = Transform::new(
+        Vec3::new(2.0, 4.0, 6.0),
+        Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI),
+    );
     let mid = Transform::lerp(a, b, 0.5);
     // translation lerp at t=0.5 = (1, 2, 3)
     assert!((mid.translation.x - 1.0).abs() < 1e-5);
