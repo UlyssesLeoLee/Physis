@@ -189,6 +189,56 @@ impl Vec3 {
             z: (b.z - a.z).mul_add(t, a.z),
         }
     }
+
+    /// 分量级 `min`：逐分量取较小值。
+    ///
+    /// 关联函数风格（与 [`Vec3::lerp`] 一致），便于链式表达。
+    /// 不偏序于标量 `f32::min`：`f32::min(-0.0, 0.0) == -0.0`，本方法行为一致（不抹零号）。
+    #[inline]
+    #[must_use]
+    pub fn min(a: Self, b: Self) -> Self {
+        Self::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z))
+    }
+
+    /// 分量级 `max`：逐分量取较大值。
+    ///
+    /// 关联函数风格（与 [`Vec3::lerp`] 一致），便于链式表达。
+    /// `NaN` 传播行为遵循 `f32::max`（`f32::max(x, NaN) = x`，`f32::max(NaN, y) = y`）。
+    #[inline]
+    #[must_use]
+    pub fn max(a: Self, b: Self) -> Self {
+        Self::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z))
+    }
+
+    /// 分量级绝对值：`-self` 的无符号版本。
+    ///
+    /// `f32::abs(-0.0) = 0.0`（抹零号），调用方若依赖符号位需额外处理。
+    #[inline]
+    #[must_use]
+    pub fn abs(self) -> Self {
+        Self::new(self.x.abs(), self.y.abs(), self.z.abs())
+    }
+
+    /// 最小分量。
+    ///
+    /// 返回三个分量中数值最小者。`NaN` 行为遵循 `f32::min`：
+    /// 含 `NaN` 的输入会传播 `NaN`（`f32::min(NaN, x) = x`，但 `x.min(NaN) = NaN`）。
+    /// 若需鲁棒 `NaN` 过滤，调用方应在外层检查。
+    #[inline]
+    #[must_use]
+    pub fn min_component(self) -> f32 {
+        self.x.min(self.y).min(self.z)
+    }
+
+    /// 最大分量。
+    ///
+    /// 返回三个分量中数值最大者。`NaN` 行为遵循 `f32::max`
+    /// （与 [`Vec3::min_component`] 对偶，传播语义一致）。
+    #[inline]
+    #[must_use]
+    pub fn max_component(self) -> f32 {
+        self.x.max(self.y).max(self.z)
+    }
 }
 
 impl core::ops::Add for Vec3 {

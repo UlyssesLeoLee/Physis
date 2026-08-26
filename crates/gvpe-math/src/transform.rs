@@ -68,6 +68,21 @@ impl Transform {
         let inv_trans = inv_rot.rotate_vec3(-self.translation);
         Self::new(inv_trans, inv_rot)
     }
+
+    /// 双 component 插值：`translation` 走 [`super::Vec3::lerp`]，`rotation` 走 [`super::Quat::slerp`]。
+    ///
+    /// 适合：动画 blend、相机过渡、骨骼插值。
+    /// `t ∈ [0, 1]`：`t = 0` 返回 `a`，`t = 1` 返回 `b`。
+    /// 假设 `a.rotation`、`b.rotation` 是单位四元数（构造 API 默认保证）；
+    /// 否则 `slerp` 内的 `dot < 0` 取反分支仍会执行，但归一化效果不可预测。
+    #[inline]
+    #[must_use]
+    pub fn lerp(a: Self, b: Self, t: f32) -> Self {
+        Self::new(
+            super::Vec3::lerp(a.translation, b.translation, t),
+            super::Quat::slerp(a.rotation, b.rotation, t),
+        )
+    }
 }
 
 impl Default for Transform {

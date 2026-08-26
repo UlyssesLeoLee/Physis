@@ -449,3 +449,98 @@ fn all_types_are_pod() {
     assert_pod::<Aabb>();
     assert_pod::<Transform>();
 }
+
+// ===== v0.8 API surface 扩充测试 =====
+
+#[test]
+fn vec3_min_component_wise() {
+    let a = Vec3::new(1.0, 5.0, -3.0);
+    let b = Vec3::new(2.0, -1.0, 4.0);
+    let m = Vec3::min(a, b);
+    assert_eq!(m, Vec3::new(1.0, -1.0, -3.0));
+}
+
+#[test]
+fn vec3_max_component_wise() {
+    let a = Vec3::new(1.0, 5.0, -3.0);
+    let b = Vec3::new(2.0, -1.0, 4.0);
+    let m = Vec3::max(a, b);
+    assert_eq!(m, Vec3::new(2.0, 5.0, 4.0));
+}
+
+#[test]
+fn vec3_abs_all_positive() {
+    let v = Vec3::new(-1.0, 2.0, -3.0);
+    assert_eq!(v.abs(), Vec3::new(1.0, 2.0, 3.0));
+}
+
+#[test]
+fn vec3_min_component_picks_min() {
+    let v = Vec3::new(1.0, -5.0, 3.0);
+    assert!((v.min_component() - (-5.0)).abs() < 1e-6);
+}
+
+#[test]
+fn vec3_max_component_picks_max() {
+    let v = Vec3::new(1.0, -5.0, 3.0);
+    assert!((v.max_component() - 3.0).abs() < 1e-6);
+}
+
+#[test]
+fn vec3_neg_flips_sign() {
+    let v = Vec3::new(1.0, -2.0, 3.0);
+    assert_eq!(-v, Vec3::new(-1.0, 2.0, -3.0));
+}
+
+#[test]
+fn quat_from_rotation_between_same_vector() {
+    let a = Vec3::new(1.0, 0.0, 0.0);
+    let q = Quat::from_rotation_between(a, a);
+    // 同向量 → 单位四元数 (w ≈ 1, xyz ≈ 0)
+    let v = q.rotate_vec3(a);
+    assert!((v - a).length() < 1e-5);
+}
+
+#[test]
+fn quat_from_rotation_between_perpendicular_90deg() {
+    let from = Vec3::new(1.0, 0.0, 0.0);
+    let to = Vec3::new(0.0, 1.0, 0.0);
+    let q = Quat::from_rotation_between(from, to);
+    let rotated = q.rotate_vec3(from);
+    assert!((rotated - to).length() < 1e-5);
+}
+
+#[test]
+fn quat_look_rotation_aligned_with_forward() {
+    // look_rotation(forward=+Z, up=+Y) → 旋转 +Z 到 +Z，identity
+    let q = Quat::look_rotation(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
+    let fwd = q.rotate_vec3(Vec3::new(0.0, 0.0, 1.0));
+    assert!((fwd - Vec3::new(0.0, 0.0, 1.0)).length() < 1e-5);
+}
+
+#[test]
+fn aabb_intersection_overlap_returns_smaller_box() {
+    let a = Aabb::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(2.0, 2.0, 2.0));
+    let b = Aabb::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(3.0, 3.0, 3.0));
+    let inter = a.intersection(b).expect("overlap exists");
+    assert_eq!(inter.min, Vec3::new(1.0, 1.0, 1.0));
+    assert_eq!(inter.max, Vec3::new(2.0, 2.0, 2.0));
+}
+
+#[test]
+fn aabb_intersection_disjoint_returns_none() {
+    let a = Aabb::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+    let b = Aabb::new(Vec3::new(2.0, 2.0, 2.0), Vec3::new(3.0, 3.0, 3.0));
+    assert!(a.intersection(b).is_none());
+}
+
+#[test]
+fn transform_lerp_midpoint() {
+    let a = Transform::new(Vec3::ZERO, Quat::IDENTITY);
+    let b = Transform::new(Vec3::new(2.0, 4.0, 6.0), Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI));
+    let mid = Transform::lerp(a, b, 0.5);
+    // translation lerp at t=0.5 = (1, 2, 3)
+    assert!((mid.translation.x - 1.0).abs() < 1e-5);
+    assert!((mid.translation.y - 2.0).abs() < 1e-5);
+    assert!((mid.translation.z - 3.0).abs() < 1e-5);
+}

@@ -146,6 +146,34 @@ impl BodySpecBuilder {
         self.static_(is_static)
     }
 
+    /// 快捷设置 `profile.mass`，其他字段（`shape` / `transform` / `is_static`）保持 `None`。
+    ///
+    /// **必须先调过** [`profile`](Self::profile) —— 本方法只修改已存在的 profile 的 `mass` 字段；
+    /// 若 `profile` 仍为 `None`，调用后仍为 `None`（`build()` 会报 [`CoreError::BodySpecMissingField`]）。
+    /// 这样设计保证 `const fn` 边界（`PhysicsProfile::default_solid` 非 `const fn`，本方法无法内联构造）。
+    ///
+    /// <code>mass = 0</code> 表示 static body，调用方需随后调 [`is_static`](Self::is_static) `(true)`；
+    /// [`build()`](Self::build) 会交叉检查 `is_static` 与 `profile.is_static()` 一致性。
+    ///
+    /// 链式示例：
+    /// ```ignore
+    /// let spec = BodySpec::builder()
+    ///     .shape(ShapeDesc::Sphere { radius: 0.5 })
+    ///     .transform(dummy_transform())
+    ///     .profile(PhysicsProfile::default_solid())
+    ///     .mass(2.5)            // 覆盖 mass = 2.5
+    ///     .build()?;
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn mass(mut self, mass: f32) -> Self {
+        if let Some(mut p) = self.profile {
+            p.mass = mass;
+            self.profile = Some(p);
+        }
+        self
+    }
+
     /// 构造 `BodySpec`，校验必填 + profile 不变式 + static 交叉检查。
     pub fn build(self) -> Result<BodySpec, CoreError> {
         let shape = self

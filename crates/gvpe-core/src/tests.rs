@@ -500,3 +500,37 @@ fn core_error_new_variants_display_not_empty() {
     assert!(!s3.is_empty());
     assert!(s3.contains("shape"));
 }
+
+// ===== v0.8 API surface 扩充测试 =====
+
+#[test]
+fn physics_profile_from_mass_positive_yields_solid() {
+    let p = PhysicsProfile::from_mass(2.5);
+    assert!((p.mass - 2.5).abs() < 1e-6);
+    assert!(!p.is_static());
+    // 其余字段应保持 default_solid 默认值（density / friction 等合法）
+    assert!(p.validate().is_ok());
+}
+
+#[test]
+fn physics_profile_from_mass_zero_yields_static() {
+    let p = PhysicsProfile::from_mass(0.0);
+    assert!(p.mass.abs() < f32::EPSILON);
+    assert!(p.is_static());
+    assert!(p.validate().is_ok());
+}
+
+#[test]
+fn body_spec_builder_mass_overrides_default_solid_mass() {
+    // default_solid() 给 mass=1.0，.mass(3.5) 覆盖到 3.5
+    let spec = BodySpec::builder()
+        .shape(ShapeDesc::Sphere { radius: 0.5 })
+        .transform(dummy_transform())
+        .profile(PhysicsProfile::default_solid())
+        .mass(3.5)
+        .static_(false)
+        .build()
+        .expect("mass override should succeed");
+    assert!((spec.profile.mass - 3.5).abs() < 1e-6);
+    assert!(!spec.is_static);
+}

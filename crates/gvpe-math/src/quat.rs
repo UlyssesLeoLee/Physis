@@ -245,6 +245,130 @@ impl Quat {
             a.w.mul_add(s1, b.w * s2),
         )
     }
+
+    /// 两向量间的最短弧旋转四元数。
+    ///
+    /// 返回的 `q` 满足 `q.rotate_vec3(from) == to`（在 `from` / `to` 归一化且不反向的条件下）。
+    /// 走最短弧：若 `from` 与 `to` 反向（`dot ≈ -1`），构造绕与 `from` 正交的单位轴的 180° 旋转。
+    ///
+    /// **特判**：
+    /// - `dot ≈ 1` → `IDENTITY`（无旋转，零向量轴不稳定）
+    /// - `dot ≈ -1` → 180° 旋转（轴 = 任一与 `from` 正交的单位向量，挑选 `|from.x|` / `|from.y|` / `|from.z|` 最小者所在平面）
+    /// - `from` 或 `to` 长度 < `f32::EPSILON` → 不保证有意义的输出（与 `Mat3` 等一致不显式 `panic`）
+    ///
+    /// 实现参考 Stan Melax 的 `<https://blog.molecular-matters.com/2013/05/24/a-brief-quaternion-primer/>` 末尾的 closed-form。
+    #[allow(clippy::many_single_char_names)]
+    #[inline]
+    #[must_use]
+    pub fn from_rotation_between(from: super::Vec3, to: super::Vec3) -> Self {
+        let from_n = from.normalize();
+        let to_n = to.normalize();
+        let d = from_n.dot(to_n);
+
+        // 同向：返回单位四元数
+        if d >= 0.999_999 {
+            return Self::IDENTITY;
+        }
+
+        // 反向：180° 旋转，轴 = 与 from 正交的任意单位向量
+        if d <= -0.999_999 {
+            // 选 |from| 最小分量所在轴的"相邻轴"，叉乘得正交向量
+            let axis = if from_n.x.abs() <= from_n.y.abs() && from_n.x.abs() <= from_n.z.abs() {
+                super::Vec3::X
+            } else if from_n.y.abs() <= from_n.z.abs() {
+                super::Vec3::Y
+            } else {
+                super::Vec3::Z
+            };
+            let perp = from_n.cross(axis).normalize();
+            // 180°：sin(θ/2) = sin(π/2) = 1，cos(θ/2) = 0
+            return Self::new(perp.x, perp.y, perp.z, 0.0);
+        }
+
+        // 一般情形：s = √(2(1+d)), axis = from × to, w = s/2
+        let s = (2.0_f32).mul_add(1.0 + d, 0.0).sqrt();
+        let axis = from_n.cross(to_n);
+        let inv_s = 1.0 / s;
+        Self::new(
+            axis.x * inv_s,
+            axis.y * inv_s,
+            axis.z * inv_s,
+            s * 0.5,
+        )
+    }
+
+    /// Look-at 旋转：返回把 `forward`（世界系）转到 `-Z`（视图系）的旋转四元数。
+    ///
+    /// `forward` 与 `up` 应是**非零**且**不正交但不共线**的向量；函数内部对 `forward` 归一化，
+    /// `right = up × forward` 也做归一化以避免退化。
+    ///
+    /// **约定**：
+    /// - 相机视方向 = `+forward`（不是 -Z；调用方若需把相机放到 `forward` 方向看，需再用 `Quat::rotate_vec3` 验证）
+    /// - 右手坐标系：`right × up = forward`（与 [`Mat3::from_basis`] 列向量语义一致）
+    /// - 返回的四元数是单位四元数（通过 Shepperd's method 从正交矩阵提取，保证数值稳定）
+    ///
+    /// **退化情况**：`forward` 与 `up` 共线时 `right = 0`，正交化后矩阵奇异，返回值未定义；
+    /// 调用方应保证输入不共线（典型实现：up = (0, 1, 0) 永远与 forward 不共线除非 forward 是 ±Y）。
+    #[allow(clippy::many_single_char_names)]
+    #[inline]
+    #[must_use]
+    pub fn look_rotation(forward: super::Vec3, up: super::Vec3) -> Self {
+        let f = forward.normalize();
+        let r = up.cross(f).normalize();
+        // 重新正交化 up：u' = f × r（保证三者正交）
+        let u = f.cross(r);
+
+        // 列向量矩阵 M = [r | u | f]（行优先存储）
+        let m00 = r.x;
+        let m10 = r.y;
+        let m20 = r.z;
+        let m01 = u.x;
+        let m11 = u.y;
+        let m21 = u.z;
+        let m02 = f.x;
+        let m12 = f.y;
+        let m22 = f.z;
+
+        // Shepperd's method：trace 分支保证数值稳定
+        let trace = m00.mul_add(1.0, m11 + m22);
+        if trace > 0.0 {
+            let s = 2.0 * (trace + 1.0).sqrt();
+            let inv_s4 = 0.25 / s;
+            Self::new(
+                (m21 - m12) * inv_s4,
+                (m02 - m20) * inv_s4,
+                (m10 - m01) * inv_s4,
+                0.25 * s,
+            )
+        } else if m00 > m11 && m00 > m22 {
+            let s = 2.0 * (1.0_f32).mul_add(m00, -(m11 + m22)).sqrt();
+            let s_quarter = 0.25 * s;
+            Self::new(
+                s_quarter,
+                (m01 + m10) / s,
+                (m02 + m20) / s,
+                (m21 - m12) / s,
+            )
+        } else if m11 > m22 {
+            let s = 2.0 * (1.0_f32).mul_add(m11, -(m00 + m22)).sqrt();
+            let s_quarter = 0.25 * s;
+            Self::new(
+                (m01 + m10) / s,
+                s_quarter,
+                (m12 + m21) / s,
+                (m02 - m20) / s,
+            )
+        } else {
+            let s = 2.0 * (1.0_f32).mul_add(m22, -(m00 + m11)).sqrt();
+            let s_quarter = 0.25 * s;
+            Self::new(
+                (m02 + m20) / s,
+                (m12 + m21) / s,
+                s_quarter,
+                (m10 - m01) / s,
+            )
+        }
+    }
 }
 
 // 注：`Quat` 与 `f32` 的乘法 / 除法未实现（语义不明确）。

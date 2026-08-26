@@ -115,6 +115,26 @@ impl PhysicsProfile {
         p
     }
 
+    /// 单 `mass` 参数构造 profile，其余字段取 [`Self::default_solid`] 默认值。
+    ///
+    /// - `mass > 0` → 返回 `default_solid` 并覆盖 `mass`（典型动态 body 用法）
+    /// - `mass <= 0` → 走 [`Self::default_static`]（即 `mass == 0` 的 static body）
+    ///
+    /// **设计选择**：用 `mass` 符号覆盖 `dynamic` / `static` 切换，不分裂成两份
+    /// `from_mass_dynamic` / `from_mass_static`（保持 API 简洁；与 [`Self::is_static`]
+    /// 的 `mass == 0` 判定一致）。负值会被静默映射到 `default_static` 而**不**报
+    /// `CoreError::ProfileInconsistent`——本函数不返 `Result`；调用方若需严格区分
+    /// 应在传入前检查或调用 [`Self::validate`]。
+    pub fn from_mass(mass: f32) -> Self {
+        if mass > 0.0 {
+            let mut p = Self::default_solid();
+            p.mass = mass;
+            p
+        } else {
+            Self::default_static()
+        }
+    }
+
     /// 验证 profile 不变式。
     ///
     /// 全部不变量见 `GVPE-DOC-17` §1.2。失败时返回首个违反的字段（便于上层定位）。

@@ -136,6 +136,27 @@ impl Aabb {
             ),
         )
     }
+
+    /// 与另一 AABB 求交集。
+    ///
+    /// 返回**包围盒几何交集**对应的 AABB（`min = max(self.min, other.min)`，
+    /// `max = min(self.max, other.max)`，逐分量）；**任一分量**上交集为空（`new_min > new_max`）则返回 `None`。
+    ///
+    /// 与 [`Self::overlaps`] 的关系：`intersection` 返回 `None` 当且仅当 `overlaps` 返回 `false`；
+    /// 但 `intersection` 还会给出"重合区域"，`overlaps` 只会返 bool。典型用途：BVH 求交后递推。
+    ///
+    /// **边界语义**：与 `overlaps` 一致——边界相切（`new_min == new_max`）返回零体积 AABB（`Some`），
+    /// 而非 `None`；调用方若需"严格体相交通"应在外层检查 `half_extents()` 是否全 `0`。
+    #[inline]
+    #[must_use]
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        let new_min = super::Vec3::max(self.min, other.min);
+        let new_max = super::Vec3::min(self.max, other.max);
+        if new_min.x > new_max.x || new_min.y > new_max.y || new_min.z > new_max.z {
+            return None;
+        }
+        Some(Self::new(new_min, new_max))
+    }
 }
 
 impl Default for Aabb {
