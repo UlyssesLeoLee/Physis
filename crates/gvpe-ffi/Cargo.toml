@@ -1,0 +1,41 @@
+[package]
+name = "gvpe-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+description = "Physis C ABI surface — Unity / Unreal / Godot / 自研引擎集成入口（per GVPE-DOC-10）"
+
+[lints]
+workspace = true  # 继承 workspace.lints（unsafe_op_in_unsafe_fn / missing_docs 等）
+
+[lib]
+# FFI 端需要静态库给 C 链接（C# / C++ / Unity DllImport 等），
+# rlib 给 Rust 内部（gvpe-graph / gvpe-vector / 测试）调用。
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+gvpe-core = { workspace = true }
+gvpe-math = { workspace = true }
+gvpe-memory = { workspace = true }
+bytemuck = { workspace = true }
+thiserror = { workspace = true }
+# 注: tracing 是工作空间 dependency 但本 crate 不直接用(v0.9 skeleton 不需要日志，留 v0.10+)
+# gvpe-memory 在 v0.9 skeleton 也不直接使用(无 slab/arena 路径), 仍声明以备 v0.10 扩展,
+# 且不增加二进制体积 (静态链接不引用的代码会被 LTO 消除).
+
+# Release profile 覆盖说明:
+# FFI 边界理想配置是 `panic = "abort"`,以防 unwind 跨 C 边界(C 栈展开行为未定义)。
+# 但 Cargo **stable 不支持 per-package panic override** —— `[profile.*.package.X]`
+# 的 `panic` 字段会触发编译错误。nightly 上需 `-Z profile-rustflags` 才可用。
+#
+# 现状: 沿用根 `[profile.release]` 的 `panic = "unwind"`,本 crate 依赖
+# `catch_unwind` 包裹所有 extern "C" 入口作为主屏障(已落实,见 `lib.rs` 顶部
+# 注释)。"abort" 配置在 v0.10+ 切换到 nightly / 引入 build script 设置
+# RUSTFLAGS 时再启用。

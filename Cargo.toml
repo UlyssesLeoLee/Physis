@@ -15,7 +15,7 @@ members = [
     # "crates/gvpe-island",
     # "crates/gvpe-scheduler",
     # "crates/gvpe-runtime",
-    # "crates/gvpe-ffi",
+    "crates/gvpe-ffi",
     # "crates/gvpe-graph",
     # "crates/gvpe-vector",
     # "crates/gvpe-compiler",
@@ -56,6 +56,7 @@ pretty_assertions = "1.4"
 gvpe-math = { path = "crates/gvpe-math", version = "0.1.0" }
 gvpe-core = { path = "crates/gvpe-core", version = "0.1.0" }
 gvpe-memory = { path = "crates/gvpe-memory", version = "0.1.0" }
+gvpe-ffi = { path = "crates/gvpe-ffi", version = "0.1.0" }
 
 # 工作空间级 profile
 [profile.release]
