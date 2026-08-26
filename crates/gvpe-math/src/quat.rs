@@ -141,7 +141,8 @@ impl Quat {
     #[inline]
     #[must_use]
     pub fn slerp(a: Self, b: Self, t: f32) -> Self {
-        let mut dot = a.x.mul_add(b.x, a.y.mul_add(b.y, a.z.mul_add(b.z, a.w * b.w)));
+        let mut dot =
+            a.x.mul_add(b.x, a.y.mul_add(b.y, a.z.mul_add(b.z, a.w * b.w)));
         // 走较短弧：dot < 0 时取反 b
         let b = if dot < 0.0 {
             dot = -dot;
