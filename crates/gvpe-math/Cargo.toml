@@ -14,5 +14,8 @@ bytemuck = { workspace = true }
 default = []
 simd = []  # vendor intrinsics SIMD paths (future, MVP = scalar)
 
+[dev-dependencies]
+proptest = { workspace = true }
+
 [lints]
 workspace = true

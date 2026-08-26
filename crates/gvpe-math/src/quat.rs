@@ -42,6 +42,23 @@ impl Quat {
     }
 
     /// 从旋转轴（必须归一化）和角度（弧度）构造。
+    ///
+    /// # 例子
+    ///
+    /// ```
+    /// use gvpe_math::{Quat, Vec3};
+    /// // 绕 X 轴 90° 旋转：(0, 1, 0) → (0, 0, 1)
+    /// let q = Quat::from_axis_angle(Vec3::X, core::f32::consts::FRAC_PI_2);
+    /// let v = q.rotate_vec3(Vec3::Y);
+    /// let r = v.normalize();
+    /// // 浮点累积误差下用容差比较
+    /// assert!((r.x).abs() < 1e-5);
+    /// assert!((r.y).abs() < 1e-5);
+    /// assert!((r.z - 1.0).abs() < 1e-5);
+    /// // 0 角度 = IDENTITY
+    /// let q0 = Quat::from_axis_angle(Vec3::Y, 0.0);
+    /// assert_eq!(q0, Quat::IDENTITY);
+    /// ```
     #[inline]
     #[must_use]
     pub fn from_axis_angle(axis: super::Vec3, angle_rad: f32) -> Self {

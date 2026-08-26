@@ -44,6 +44,23 @@ impl Aabb {
     /// **空切片返回 `None`**（工程做法：不允许零大小 AABB）。
     /// **单点**返回零体积 AABB（等价于 [`Aabb::from_point`]）。
     /// **多点**返回各分量取 `min` / `max` 的 AABB。
+    ///
+    /// # 例子
+    ///
+    /// ```
+    /// use gvpe_math::{Aabb, Vec3};
+    /// // 空切片：返回 None
+    /// assert_eq!(Aabb::from_points(&[]), None);
+    /// // 单点：零体积 AABB
+    /// let a = Aabb::from_points(&[Vec3::new(1.0, 2.0, 3.0)]).unwrap();
+    /// assert_eq!(a.min, Vec3::new(1.0, 2.0, 3.0));
+    /// assert_eq!(a.max, Vec3::new(1.0, 2.0, 3.0));
+    /// // 多点：包含所有点的 AABB
+    /// let pts = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(2.0, -1.0, 5.0), Vec3::new(-1.0, 3.0, 1.0)];
+    /// let a = Aabb::from_points(&pts).unwrap();
+    /// assert_eq!(a.min, Vec3::new(-1.0, -1.0, 0.0));
+    /// assert_eq!(a.max, Vec3::new(2.0, 3.0, 5.0));
+    /// ```
     #[must_use]
     pub fn from_points(pts: &[super::Vec3]) -> Option<Self> {
         let first = *pts.first()?;

@@ -14,5 +14,8 @@ thiserror = { workspace = true }
 default = []
 deterministic = []  # DEC-006
 
+[dev-dependencies]
+proptest = { workspace = true }
+
 [lints]
 workspace = true
