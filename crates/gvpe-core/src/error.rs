@@ -37,6 +37,29 @@ pub enum CoreError {
     #[error("RuntimeDescriptor 为空")]
     DescriptorEmpty,
 
+    /// `RuntimeDescriptor::body` / `body_mut` 索引越界。
+    #[error("body 索引越界: index = {index}, len = {len}")]
+    BodyIndexOutOfBounds {
+        /// 请求的索引。
+        index: usize,
+        /// 当前 `bodies.len()`。
+        len: usize,
+    },
+
+    /// `RuntimeDescriptor` 中出现重复的 body 标识（保留字段，MVP 暂以 index 排序后查重）。
+    #[error("RuntimeDescriptor 含重复 body index: {index}")]
+    DuplicateBodyIndex {
+        /// 重复的索引。
+        index: usize,
+    },
+
+    /// `BodySpecBuilder` 缺少必填字段。
+    #[error("BodySpec 必填字段缺失: {field}")]
+    BodySpecMissingField {
+        /// 缺失字段名。
+        field: &'static str,
+    },
+
     /// 物理 LOD 不支持（MVP 仅 LOD0）。
     #[error("物理 LOD {0:?} 不支持（MVP 仅 Lod0Full）")]
     LodNotSupported(crate::PhysicsLodTag),

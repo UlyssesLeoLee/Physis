@@ -19,7 +19,9 @@ mod handle;
 mod marker;
 mod profile;
 
-pub use descriptor::{BodySpec, DeterminismMode, InitialTransform, RuntimeDescriptor, ShapeDesc};
+pub use descriptor::{
+    BodySpec, BodySpecBuilder, DeterminismMode, InitialTransform, RuntimeDescriptor, ShapeDesc,
+};
 pub use error::CoreError;
 pub use handle::{BodyHandle, ConstraintHandle, IslandHandle};
 pub use marker::{ExecutionEntity, PkqEntity, RuntimeConstraintEntity};

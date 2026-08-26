@@ -32,6 +32,17 @@ impl BodyHandle {
         Self { index, generation }
     }
 
+    /// 从原始位模式重建句柄（语义上等价于 [`new`](Self::new)，仅命名差异）。
+    ///
+    /// 用于：
+    /// - FFI 边界：直接接收 `index` / `generation` 两个 `u32` 重组句柄
+    /// - 序列化反序列化：跳过类型校验直接落位
+    /// - 单元测试：精确构造特定 `(index, generation)` 组合
+    #[inline]
+    pub const fn from_raw(index: u32, generation: u32) -> Self {
+        Self { index, generation }
+    }
+
     /// 是否等于 [`INVALID`](Self::INVALID)。
     #[inline]
     pub fn is_invalid(self) -> bool {
@@ -65,6 +76,12 @@ impl ConstraintHandle {
         Self { index, generation }
     }
 
+    /// 从原始位模式重建句柄（语义同 [`new`](Self::new)）。
+    #[inline]
+    pub const fn from_raw(index: u32, generation: u32) -> Self {
+        Self { index, generation }
+    }
+
     /// 是否等于 [`INVALID`](Self::INVALID)。
     #[inline]
     pub fn is_invalid(self) -> bool {
@@ -90,6 +107,12 @@ impl IslandHandle {
     /// 构造新 island 句柄。
     #[inline]
     pub const fn new(index: u32) -> Self {
+        Self(index)
+    }
+
+    /// 从原始位模式重建 island 句柄。
+    #[inline]
+    pub const fn from_raw(index: u32) -> Self {
         Self(index)
     }
 

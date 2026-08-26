@@ -68,11 +68,11 @@ pub struct PhysicsProfile {
     /// 物理 LOD 等级（u8）。
     pub approximation_level: PhysicsLodTag,
     /// 显式 padding（避免编译器 reorder）。
-    #[allow(dead_code)]
-    pub padding: [u8; 1],
+    #[allow(clippy::pub_underscore_fields)]
+    pub _padding: [u8; 1],
 }
 
-// SAFETY: 所有字段为 `Pod`（f32 / u16 / u8），`padding` 显式，无隐式 padding。
+// SAFETY: 所有字段为 `Pod`（f32 / u16 / u8），`_padding` 显式，无隐式 padding。
 unsafe impl Pod for PhysicsProfile {}
 unsafe impl Zeroable for PhysicsProfile {}
 
@@ -104,7 +104,7 @@ impl PhysicsProfile {
             solver_iterations: 10,
             collision_profile: 0,
             approximation_level: PhysicsLodTag::Lod0Full,
-            padding: [0],
+            _padding: [0],
         }
     }
 
@@ -113,6 +113,154 @@ impl PhysicsProfile {
         let mut p = Self::default_solid();
         p.mass = 0.0;
         p
+    }
+
+    /// 验证 profile 不变式。
+    ///
+    /// 全部不变量见 `GVPE-DOC-17` §1.2。失败时返回首个违反的字段（便于上层定位）。
+    ///
+    /// ## 检查项
+    ///
+    /// - `mass >= 0`（`mass == 0` 表示 static body —— 调用方需自行保证 `is_static == true`）
+    /// - 若 `mass > 0`，则 `density > 0` 且惯性对角线 > 0
+    /// - `friction ∈ [0, 1]`、`restitution ∈ [0, 1]`
+    /// - `damping_linear / damping_angular ∈ [0, 1]`
+    /// - `compliance >= 0`、`viscosity >= 0`
+    /// - `solver_iterations >= 1`
+    /// - 所有浮点字段非 `NaN`
+    ///
+    /// 注：是否为 static 由 [`crate::descriptor::BodySpec::is_static`] 决定，
+    /// `PhysicsProfile` 本身不携带该信息（与 `BodySpec` 解耦）。
+    pub fn validate(&self) -> Result<(), crate::error::CoreError> {
+        use crate::error::CoreError;
+
+        // 1. NaN 检测（所有浮点字段）。
+        Self::check_not_nan(self.mass, "mass")?;
+        Self::check_not_nan(self.density, "density")?;
+        Self::check_not_nan(self.friction, "friction")?;
+        Self::check_not_nan(self.restitution, "restitution")?;
+        Self::check_not_nan(self.damping_linear, "damping_linear")?;
+        Self::check_not_nan(self.damping_angular, "damping_angular")?;
+        Self::check_not_nan(self.compliance, "compliance")?;
+        Self::check_not_nan(self.viscosity, "viscosity")?;
+
+        // 2. mass >= 0（mass == 0 合法 → static body）。
+        if self.mass < 0.0 {
+            return Err(CoreError::ProfileInconsistent {
+                field: "mass",
+                value: self.mass,
+            });
+        }
+
+        // 3. 若 mass > 0，density 必须 > 0；惯性对角线必须 > 0。
+        if self.mass > 0.0 {
+            if self.density <= 0.0 {
+                return Err(CoreError::ProfileInconsistent {
+                    field: "density",
+                    value: self.density,
+                });
+            }
+            let diag = self.inertia_diagonal();
+            for (i, &d) in diag.iter().enumerate() {
+                if d <= 0.0 {
+                    return Err(CoreError::ProfileInconsistent {
+                        field: match i {
+                            0 => "inertia[0]",
+                            1 => "inertia[4]",
+                            _ => "inertia[8]",
+                        },
+                        value: d,
+                    });
+                }
+            }
+        }
+
+        // 4. 范围检查。
+        Self::check_unit_range(self.friction, "friction")?;
+        Self::check_unit_range(self.restitution, "restitution")?;
+        Self::check_unit_range(self.damping_linear, "damping_linear")?;
+        Self::check_unit_range(self.damping_angular, "damping_angular")?;
+        if self.compliance < 0.0 {
+            return Err(CoreError::ProfileInconsistent {
+                field: "compliance",
+                value: self.compliance,
+            });
+        }
+        if self.viscosity < 0.0 {
+            return Err(CoreError::ProfileInconsistent {
+                field: "viscosity",
+                value: self.viscosity,
+            });
+        }
+
+        // 5. 求解器迭代。
+        if self.solver_iterations < 1 {
+            return Err(CoreError::ProfileInconsistent {
+                field: "solver_iterations",
+                // u16 → f32（仅用于 Display）
+                value: f32::from(self.solver_iterations),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// NaN 检测辅助：若 `v` 是 `NaN` 返回 `ProfileInconsistent`。
+    #[inline]
+    fn check_not_nan(v: f32, field: &'static str) -> Result<(), crate::error::CoreError> {
+        use crate::error::CoreError;
+        if v.is_nan() {
+            Err(CoreError::ProfileInconsistent { field, value: v })
+        } else {
+            Ok(())
+        }
+    }
+
+    /// 范围检查辅助：`v ∈ [0, 1]`。
+    #[inline]
+    fn check_unit_range(v: f32, field: &'static str) -> Result<(), crate::error::CoreError> {
+        use crate::error::CoreError;
+        if (0.0..=1.0).contains(&v) {
+            Ok(())
+        } else {
+            Err(CoreError::ProfileInconsistent { field, value: v })
+        }
+    }
+
+    /// 是否为 static body（`mass == 0.0`）。
+    ///
+    /// 注：`BodySpec` 自身有 `is_static` 字段；本方法仅基于 `mass` 判断，
+    /// 两者**应保持一致**（`BodySpecBuilder::build` 会做交叉检查）。
+    #[inline]
+    pub fn is_static(&self) -> bool {
+        self.mass == 0.0
+    }
+
+    /// 提取惯性张量对角线 `[Ixx, Iyy, Izz]`。
+    ///
+    /// `inertia` 字段为 3×3 行优先矩阵（`#[repr(C)]` 锁定布局），
+    /// 对角元素索引为 `0 / 4 / 8`。
+    #[inline]
+    pub const fn inertia_diagonal(&self) -> [f32; 3] {
+        [self.inertia[0], self.inertia[4], self.inertia[8]]
+    }
+
+    /// 惯性张量对角线倒数 `[1/Ixx, 1/Iyy, 1/Izz]`。
+    ///
+    /// **static body（`mass == 0`）返回 `[0, 0, 0]`** 而不是 `[+inf, +inf, +inf]`，
+    /// 以避免后续积分步骤出现 `NaN`（详见 `GVPE-DOC-17` §1.2 末尾备注）。
+    /// 调用方无需再做 `is_finite` 判断。
+    #[inline]
+    pub fn inverse_inertia(&self) -> [f32; 3] {
+        if self.is_static() {
+            return [0.0, 0.0, 0.0];
+        }
+        let d = self.inertia_diagonal();
+        [
+            if d[0] == 0.0 { 0.0 } else { 1.0 / d[0] },
+            if d[1] == 0.0 { 0.0 } else { 1.0 / d[1] },
+            if d[2] == 0.0 { 0.0 } else { 1.0 / d[2] },
+        ]
     }
 }
 
