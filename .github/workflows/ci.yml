@@ -158,6 +158,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: ${{ matrix.target }}
 
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
