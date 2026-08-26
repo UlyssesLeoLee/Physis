@@ -56,18 +56,96 @@ impl Arena {
     ///   不表示内部可变状态是线程安全的；多线程共享需外层同步或每个 worker 独立 `Arena`）。
     #[allow(clippy::mut_from_ref)]
     pub fn alloc<T>(&self, val: T) -> Result<&mut T, ArenaError> {
+        let (slot, new_cursor) = self.reserve_aligned::<T>(1)?;
+
+        // SAFETY: `reserve_aligned` 已检查 `new_cursor <= capacity`；
+        // `slot` 落在 `buf` 的 `as_mut_ptr()..as_mut_ptr().add(capacity)` 内。
+        unsafe {
+            *self.cursor.get() = new_cursor;
+            let ptr = (*self.buf.get()).as_mut_ptr().add(slot).cast::<T>();
+            ptr.write(val);
+            Ok(&mut *ptr)
+        }
+    }
+
+    /// 永不 panic 版本的 `alloc`：容量不足返 `None`，不消耗 cursor。
+    ///
+    /// 与 `alloc` 行为差异：失败时**不**回写 cursor 增量（因为从未递增）。
+    #[allow(clippy::mut_from_ref)]
+    pub fn try_alloc<T>(&self, val: T) -> Option<&mut T> {
+        match self.reserve_aligned::<T>(1) {
+            Ok((slot, new_cursor)) => {
+                // SAFETY: 同 `alloc`。
+                unsafe {
+                    *self.cursor.get() = new_cursor;
+                    let ptr = (*self.buf.get()).as_mut_ptr().add(slot).cast::<T>();
+                    ptr.write(val);
+                    Some(&mut *ptr)
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// 批量分配 `len` 个 `T` 值的切片。
+    ///
+    /// 要求 `T: Copy` —— arena 不为 `T` 调用 `drop`，调用方需自行管理元素生命周期。
+    /// 容量不足返 [`ArenaError::Overflow`]，不消耗 cursor。
+    #[allow(clippy::mut_from_ref)]
+    pub fn alloc_slice<T: Copy>(&self, len: usize) -> Result<&mut [T], ArenaError> {
+        if len == 0 {
+            // 零长切片永远不失败；返回空切片。
+            return Ok(&mut []);
+        }
+        let (slot, new_cursor) = self.reserve_aligned::<T>(len)?;
+        // SAFETY: `reserve_aligned` 已校验 `new_cursor <= capacity` 且 `len * size_of::<T>()`
+        // 在 `checked_mul` 下未溢出，因此 `[slot, new_cursor)` 范围合法。
+        unsafe {
+            *self.cursor.get() = new_cursor;
+            let ptr = (*self.buf.get()).as_mut_ptr().add(slot).cast::<T>();
+            Ok(core::slice::from_raw_parts_mut(ptr, len))
+        }
+    }
+
+    /// 计算 `count` 个 `T` 所需的对齐偏移 + 新的 cursor。
+    ///
+    /// 内部辅助函数：集中处理 `checked_mul` / `checked_add` 防止整数 wrap。
+    /// 返回 `(aligned_offset, new_cursor)`；容量不足返 [`ArenaError::Overflow`]。
+    ///
+    /// # Safety
+    ///
+    /// 调用方负责保证 `count > 0`（本方法不校验），以及最终把 `new_cursor` 写回 cursor。
+    fn reserve_aligned<T>(&self, count: usize) -> Result<(usize, usize), ArenaError> {
         let size = core::mem::size_of::<T>();
         let align = core::mem::align_of::<T>();
 
-        let cursor_ref = self.cursor.get();
-        let buf_ref = self.buf.get();
+        // count * size_of::<T>() 溢出检查
+        let total_bytes = size.checked_mul(count).ok_or(ArenaError::Overflow {
+            needed: usize::MAX,
+            available: 0,
+        })?;
 
         // SAFETY: 单线程使用，&self 访问内部可变状态是安全的。
+        let cursor_ref = self.cursor.get();
+        let buf_ref = self.buf.get();
         let current = unsafe { *cursor_ref };
-        let aligned = (current + align - 1) & !(align - 1);
-        let new_cursor = aligned + size;
-
         let buf_len = unsafe { (*buf_ref).capacity() };
+
+        // 对齐推进（对 align 是 2 的幂，行为良好；非 2 的幂走 slow path）。
+        let aligned = if align.is_power_of_two() {
+            (current + align - 1) & !(align - 1)
+        } else {
+            current + ((align - (current % align)) % align)
+        };
+
+        // aligned + total_bytes 溢出检查
+        let new_cursor = aligned
+            .checked_add(total_bytes)
+            .ok_or(ArenaError::Overflow {
+                needed: usize::MAX,
+                available: buf_len,
+            })?;
+
         if new_cursor > buf_len {
             return Err(ArenaError::Overflow {
                 needed: new_cursor,
@@ -75,13 +153,7 @@ impl Arena {
             });
         }
 
-        // SAFETY: 已检查容量 + 对齐；写入不会越界。
-        unsafe {
-            *cursor_ref = new_cursor;
-            let ptr = (*buf_ref).as_mut_ptr().add(aligned).cast::<T>();
-            ptr.write(val);
-            Ok(&mut *ptr)
-        }
+        Ok((aligned, new_cursor))
     }
 
     /// 重置 cursor（O(1)）。**不**调用 `T::drop`（调用方需自行管理）。

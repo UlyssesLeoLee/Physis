@@ -160,6 +160,74 @@ impl<T> Slab<T> {
     pub fn active_count(&self) -> usize {
         self.slots.iter().filter(|s| s.data.is_some()).count()
     }
+
+    /// 预分配容量（不影响 `active_count`）。
+    ///
+    /// 仅扩展内部 `Vec` 容量，不创建新 slot；常用于延迟热路径首次 realloc。
+    pub fn reserve(&mut self, additional: usize) {
+        self.slots.reserve(additional);
+        // free_list 也预分配同样容量上限：通常与 slots 同量级。
+        self.free_list.reserve(additional);
+    }
+
+    /// 不取借用地检查 `handle` 是否仍指向一个 alive slot。
+    ///
+    /// 仅做：index 越界检查 + generation 匹配检查。**不**做"data 是否为 Some"的二次校验
+    /// —— 设计上 `generation` 必与"是否被 free"一一对应，命中即 alive。
+    ///
+    /// 用作热路径上的快速预检（避免 `get` 走 `Result` 解包路径）。
+    pub fn is_valid(&self, handle: SlabHandle) -> bool {
+        let i = handle.index as usize;
+        i < self.slots.len() && self.slots[i].generation == handle.generation
+    }
+
+    /// 遍历所有 active slot，产出 `(handle, &T)`。
+    ///
+    /// 顺序按 slot 索引递增；`handle.generation` 与当前 slot 一致。
+    pub fn iter(&self) -> impl Iterator<Item = (SlabHandle, &T)> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.data.as_ref().map(|v| (s.handle(i as u32), v)))
+    }
+
+    /// 遍历所有 active slot，产出 `(handle, &mut T)`。
+    ///
+    /// 顺序按 slot 索引递增；`handle.generation` 与当前 slot 一致。
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (SlabHandle, &mut T)> {
+        // 不能在同一闭包里同时持有 `s.data` 的 `&mut` 和 `s.generation` 的 `&`，
+        // 因此把 generation 提前拷出，再 move 进闭包。
+        self.slots.iter_mut().enumerate().filter_map(|(i, s)| {
+            let generation = s.generation;
+            let handle = SlabHandle {
+                index: i as u32,
+                generation,
+            };
+            s.data.as_mut().map(|v| (handle, v))
+        })
+    }
+
+    /// 返回所有 active handle 列表（用于 debug / GC 扫描）。
+    ///
+    /// 分配 `Vec` 的成本使本方法**不适合热路径**；仅供调试和一次性遍历使用。
+    pub fn active_handles(&self) -> Vec<SlabHandle> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.data.is_some())
+            .map(|(i, s)| s.handle(i as u32))
+            .collect()
+    }
+}
+
+impl<T> Slot<T> {
+    /// 由当前 slot 状态构造一个匹配的 `SlabHandle`。
+    fn handle(&self, index: u32) -> SlabHandle {
+        SlabHandle {
+            index,
+            generation: self.generation,
+        }
+    }
 }
 
 impl<T> Default for Slab<T> {

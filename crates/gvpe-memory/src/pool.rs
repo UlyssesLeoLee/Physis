@@ -94,6 +94,56 @@ impl<T> Pool<T> {
     pub fn capacity(&self) -> usize {
         self.slots.len()
     }
+
+    /// 遍历所有 active slot，产出 `(index, &T)`。
+    ///
+    /// 顺序按 slot 索引递增；只访问 `Some(_)` 的 slot。
+    pub fn iter(&self) -> impl Iterator<Item = (u32, &T)> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_ref().map(|v| (i as u32, v)))
+    }
+
+    /// 遍历所有 active slot，产出 `(index, &mut T)`。
+    ///
+    /// 顺序按 slot 索引递增；只访问 `Some(_)` 的 slot。
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (u32, &mut T)> {
+        self.slots
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_mut().map(|v| (i as u32, v)))
+    }
+
+    /// 取或填：若 `idx` 处为 `Some` 返回其 `&mut T`；若为 `None` 调用 `f` 填充后返回。
+    ///
+    /// `idx` 越界返回 [`PoolError::OutOfBounds`]。`idx` 此前**未 acquire**（槽位总数不足）也视为越界。
+    pub fn get_or_insert_with<F: FnOnce() -> T>(
+        &mut self,
+        idx: u32,
+        f: F,
+    ) -> Result<&mut T, PoolError> {
+        let i = idx as usize;
+        if i >= self.slots.len() {
+            return Err(PoolError::OutOfBounds(i, self.slots.len()));
+        }
+        if self.slots[i].is_none() {
+            self.slots[i] = Some(f());
+        }
+        // SAFETY: 上文已保证 `slots[i]` 是 `Some`。
+        Ok(self.slots[i].as_mut().expect("slot just populated"))
+    }
+
+    /// 函数式遍历所有 active slot，避免迭代器状态机开销（适合热路径）。
+    ///
+    /// 调用次数等于 `active_count()`；顺序按 slot 索引递增。
+    pub fn for_each_active<F: FnMut(u32, &T)>(&self, mut f: F) {
+        for (i, s) in self.slots.iter().enumerate() {
+            if let Some(v) = s.as_ref() {
+                f(i as u32, v);
+            }
+        }
+    }
 }
 
 impl<T> Default for Pool<T> {
