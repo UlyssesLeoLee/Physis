@@ -9,7 +9,7 @@ members = [
     "crates/gvpe-memory",
     "crates/gvpe-shape",
     "crates/gvpe-collision",
-    # "crates/gvpe-dynamics",
+    "crates/gvpe-dynamics",
     # "crates/gvpe-constraint",
     # "crates/gvpe-solver",
     # "crates/gvpe-island",
