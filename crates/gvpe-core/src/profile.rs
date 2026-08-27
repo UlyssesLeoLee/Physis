@@ -78,6 +78,20 @@ unsafe impl Zeroable for PhysicsProfile {}
 
 impl PhysicsProfile {
     /// 默认 profile（MVP 典型值）。
+    ///
+    /// # 例子
+    ///
+    /// ```
+    /// use gvpe_core::PhysicsProfile;
+    /// let p = PhysicsProfile::default_solid();
+    /// // mass = 1.0, 密度 = 1000, 默认摩擦 / 阻尼
+    /// assert_eq!(p.mass, 1.0);
+    /// assert_eq!(p.density, 1000.0);
+    /// // 自身必通过不变式
+    /// assert!(p.validate().is_ok());
+    /// // 与 `default()` 一致
+    /// assert_eq!(p, PhysicsProfile::default());
+    /// ```
     pub fn default_solid() -> Self {
         Self {
             mass: 1.0,

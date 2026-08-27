@@ -16,5 +16,8 @@ thiserror = { workspace = true }
 default = []
 deterministic = []  # DEC-006：feature 骨架化
 
+[dev-dependencies]
+proptest = { workspace = true }
+
 [lints]
 workspace = true
