@@ -65,15 +65,16 @@ pub fn broad_phase(bodies: &[Aabb]) -> Vec<(BodyIndex, BodyIndex)> {
         // 与 active 中所有项做 3D 重叠检查
         for a in &active {
             if aabb_overlap_3d(&bodies[idx], &bodies[a.idx]) {
-                let (i, j) = if idx < a.idx { (idx, a.idx) } else { (a.idx, idx) };
+                let (i, j) = if idx < a.idx {
+                    (idx, a.idx)
+                } else {
+                    (a.idx, idx)
+                };
                 pairs.push((i as BodyIndex, j as BodyIndex));
             }
         }
         // 当前 AABB 加入 active
-        active.push(ActiveEntry {
-            idx,
-            max_x,
-        });
+        active.push(ActiveEntry { idx, max_x });
     }
     pairs
 }

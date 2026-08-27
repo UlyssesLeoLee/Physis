@@ -77,10 +77,10 @@ mod manifold;
 mod narrow_phase;
 mod shape;
 
-pub use broad_phase::{BodyIndex, broad_phase};
-pub use epa::{PenetrationInfo, epa};
+pub use broad_phase::{broad_phase, BodyIndex};
+pub use epa::{epa, PenetrationInfo};
 pub use manifold::{ContactManifold, ContactPoint};
-pub use narrow_phase::{GjkResult, gjk};
+pub use narrow_phase::{gjk, GjkResult};
 pub use shape::Shape;
 
 #[cfg(test)]

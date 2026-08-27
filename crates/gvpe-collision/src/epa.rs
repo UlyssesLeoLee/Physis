@@ -124,12 +124,7 @@ pub fn epa(a: &Shape, b: &Shape) -> Option<PenetrationInfo> {
     let v = &poly.vertices;
     // 顶点序：0(1,0,0), 1(0,1,0), 2(0,0,1), 3(0,0,0)
     // 面：0-1-2, 0-3-1, 0-2-3, 1-3-2  (CCW 使法向朝外)
-    let candidates = [
-        [0usize, 1, 2],
-        [0, 3, 1],
-        [0, 2, 3],
-        [1, 3, 2],
-    ];
+    let candidates = [[0usize, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]];
     for [a, b, c] in candidates {
         if let Some(f) = Face::new(v, a, b, c) {
             poly.faces.push(f);
@@ -145,7 +140,11 @@ pub fn epa(a: &Shape, b: &Shape) -> Option<PenetrationInfo> {
             .faces
             .iter()
             .enumerate()
-            .min_by(|(_, x), (_, y)| x.distance.partial_cmp(&y.distance).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|(_, x), (_, y)| {
+                x.distance
+                    .partial_cmp(&y.distance)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(i, f)| (i, *f))?;
 
         // 沿法向 support
@@ -195,10 +194,11 @@ pub fn epa(a: &Shape, b: &Shape) -> Option<PenetrationInfo> {
     }
 
     // 迭代上限：保守返回最近面
-    let closest = poly
-        .faces
-        .iter()
-        .min_by(|x, y| x.distance.partial_cmp(&y.distance).unwrap_or(std::cmp::Ordering::Equal))?;
+    let closest = poly.faces.iter().min_by(|x, y| {
+        x.distance
+            .partial_cmp(&y.distance)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })?;
     Some(PenetrationInfo {
         normal_a_to_b: closest.normal,
         penetration: closest.distance,

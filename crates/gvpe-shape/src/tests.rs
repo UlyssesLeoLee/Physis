@@ -10,9 +10,7 @@ use std::sync::Arc;
 
 use gvpe_math::Vec3;
 
-use crate::{
-    Box3, Capsule, ConvexError, ConvexHull, Plane, Shape, ShapeHandle, ShapeType, Sphere,
-};
+use crate::{Box3, Capsule, ConvexError, ConvexHull, Plane, Shape, ShapeHandle, ShapeType, Sphere};
 
 // ============================================================================
 // 局部 AABB 正确性

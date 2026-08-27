@@ -43,9 +43,7 @@ pub use edge::{Edge, EdgeId, RelationKind};
 pub use error::{GraphError, GraphResult};
 pub use graph::{Graph, GraphStats};
 pub use node::{Node, NodeId};
-pub use walker::{
-    BfsOrder, ComponentId, DfsOrder, GraphTraverser, GraphWalker, TraversalEvent,
-};
+pub use walker::{BfsOrder, ComponentId, DfsOrder, GraphTraverser, GraphWalker, TraversalEvent};
 
 #[cfg(test)]
 mod tests;

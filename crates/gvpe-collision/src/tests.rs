@@ -27,7 +27,7 @@ use gvpe_core::BodyHandle;
 use gvpe_math::{Aabb, Quat, Vec3};
 
 use crate::{
-    ContactManifold, ContactPoint, GjkResult, PenetrationInfo, Shape, broad_phase, epa, gjk,
+    broad_phase, epa, gjk, ContactManifold, ContactPoint, GjkResult, PenetrationInfo, Shape,
 };
 
 // ============================================================================
@@ -39,7 +39,10 @@ const EPS: f32 = 1e-3;
 
 /// 球 shape 构造。
 fn sphere(c: Vec3, r: f32) -> Shape {
-    Shape::Sphere { center: c, radius: r }
+    Shape::Sphere {
+        center: c,
+        radius: r,
+    }
 }
 
 /// OBB shape 构造（轴对齐简化为无旋转）。
@@ -132,11 +135,11 @@ fn sap_two_separate() {
 fn sap_many_bodies_mixed() {
     // 5 物体：0↔1 重叠；2↔3 重叠；4 独立
     let bodies = [
-        Aabb::new(Vec3::ZERO, Vec3::splat(2.0)),                              // 0
-        Aabb::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(3.0, 2.0, 2.0)),         // 1
-        Aabb::new(Vec3::splat(5.0), Vec3::splat(7.0)),                         // 2
-        Aabb::new(Vec3::new(6.0, 5.0, 5.0), Vec3::new(8.0, 7.0, 7.0)),         // 3
-        Aabb::new(Vec3::splat(20.0), Vec3::splat(22.0)),                       // 4
+        Aabb::new(Vec3::ZERO, Vec3::splat(2.0)), // 0
+        Aabb::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(3.0, 2.0, 2.0)), // 1
+        Aabb::new(Vec3::splat(5.0), Vec3::splat(7.0)), // 2
+        Aabb::new(Vec3::new(6.0, 5.0, 5.0), Vec3::new(8.0, 7.0, 7.0)), // 3
+        Aabb::new(Vec3::splat(20.0), Vec3::splat(22.0)), // 4
     ];
     let mut pairs = broad_phase(&bodies);
     pairs.sort_unstable();
@@ -165,7 +168,10 @@ fn gjk_sphere_sphere_separated_known_distance() {
     let a = sphere(Vec3::ZERO, 1.0);
     let b = sphere(Vec3::new(5.0, 0.0, 0.0), 1.0);
     match gjk(&a, &b) {
-        GjkResult::Separated { distance, normal_a_to_b } => {
+        GjkResult::Separated {
+            distance,
+            normal_a_to_b,
+        } => {
             assert!((distance - 3.0).abs() < EPS, "distance = {}", distance);
             // normal A → B 应为 +X
             assert!((normal_a_to_b.x - 1.0).abs() < EPS);
@@ -211,7 +217,10 @@ fn gjk_sphere_box_mixed() {
     let a = sphere(Vec3::ZERO, 1.0);
     let b = aabb_box(Vec3::new(3.0, 0.0, 0.0), Vec3::splat(0.5));
     match gjk(&a, &b) {
-        GjkResult::Separated { distance, normal_a_to_b } => {
+        GjkResult::Separated {
+            distance,
+            normal_a_to_b,
+        } => {
             assert!((distance - 1.5).abs() < EPS, "distance = {}", distance);
             assert!((normal_a_to_b.x - 1.0).abs() < EPS);
         }
@@ -258,7 +267,11 @@ fn epa_sphere_sphere_penetration() {
     );
     assert!(info.penetration > 0.0);
     let n_len = info.normal_a_to_b.length();
-    assert!((n_len - 1.0).abs() < 0.01, "normal should be unit, got {}", n_len);
+    assert!(
+        (n_len - 1.0).abs() < 0.01,
+        "normal should be unit, got {}",
+        n_len
+    );
 }
 
 #[test]
@@ -337,9 +350,9 @@ fn integration_broad_to_narrow_to_manifold() {
     // - 0 vs 1: AABB 重叠 + sphere 真正 overlap（broad + narrow 都报）
     // - 0 vs 2 / 1 vs 2: 完全分离
     let bodies = [
-        Aabb::new(Vec3::ZERO, Vec3::splat(2.0)),                       // 0: (0,0,0)-(2,2,2)
-        Aabb::new(Vec3::splat(1.0), Vec3::splat(3.0)),                 // 1: (1,1,1)-(3,3,3) 与 0 重叠
-        Aabb::new(Vec3::splat(10.0), Vec3::splat(11.0)),               // 2: 独立
+        Aabb::new(Vec3::ZERO, Vec3::splat(2.0)), // 0: (0,0,0)-(2,2,2)
+        Aabb::new(Vec3::splat(1.0), Vec3::splat(3.0)), // 1: (1,1,1)-(3,3,3) 与 0 重叠
+        Aabb::new(Vec3::splat(10.0), Vec3::splat(11.0)), // 2: 独立
     ];
     let pairs = broad_phase(&bodies);
     assert_eq!(pairs.len(), 1, "broad phase 应只报 1 对");
@@ -361,9 +374,8 @@ fn integration_broad_to_narrow_to_manifold() {
                 assert!(distance > 0.0);
             }
             GjkResult::Intersect => {
-                let info: PenetrationInfo =
-                    epa(&shapes[i as usize], &shapes[j as usize])
-                        .expect("EPA must succeed for GJK-intersect");
+                let info: PenetrationInfo = epa(&shapes[i as usize], &shapes[j as usize])
+                    .expect("EPA must succeed for GJK-intersect");
                 let point = ContactPoint {
                     position: shapes[i as usize].support(info.normal_a_to_b),
                     normal: info.normal_a_to_b,

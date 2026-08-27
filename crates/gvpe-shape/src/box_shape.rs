@@ -39,7 +39,11 @@ impl Shape for Box3 {
 
     #[inline]
     fn local_aabb(&self) -> Aabb {
-        let he = Vec3::new(self.half_extents[0], self.half_extents[1], self.half_extents[2]);
+        let he = Vec3::new(
+            self.half_extents[0],
+            self.half_extents[1],
+            self.half_extents[2],
+        );
         Aabb::new(-he, he)
     }
 }

@@ -23,7 +23,10 @@ impl Capsule {
     #[inline]
     #[must_use]
     pub const fn new(radius: f32, half_height: f32) -> Self {
-        Self { radius, half_height }
+        Self {
+            radius,
+            half_height,
+        }
     }
 
     /// 总长（半球端在内）：`2 * half_height + 2 * radius`。

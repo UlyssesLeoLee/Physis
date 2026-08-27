@@ -135,12 +135,7 @@ pub trait GraphTraverser<N: Node, E: Edge> {
     ///
     /// - `start` 不在图中 → [`GraphError::UnknownNode`]；
     /// - `max_depth == 0` → [`GraphError::ZeroMaxDepth`]。
-    fn bounded_dfs<F>(
-        &self,
-        start: NodeId,
-        max_depth: usize,
-        mut callback: F,
-    ) -> GraphResult<()>
+    fn bounded_dfs<F>(&self, start: NodeId, max_depth: usize, mut callback: F) -> GraphResult<()>
     where
         F: FnMut(TraversalEvent<'_, N, E>) -> bool,
     {
@@ -151,12 +146,7 @@ pub trait GraphTraverser<N: Node, E: Edge> {
     }
 
     /// 有界 BFS：从 `start` 出发，最多走 `max_depth` 层。
-    fn bounded_bfs<F>(
-        &self,
-        start: NodeId,
-        max_depth: usize,
-        mut callback: F,
-    ) -> GraphResult<()>
+    fn bounded_bfs<F>(&self, start: NodeId, max_depth: usize, mut callback: F) -> GraphResult<()>
     where
         F: FnMut(TraversalEvent<'_, N, E>) -> bool,
     {
@@ -218,11 +208,7 @@ pub trait GraphWalker<N: Node, E: Edge>: GraphTraverser<N, E> {
             true
         })?;
         // 截断空尾层（防御性）。
-        while order
-            .layers
-            .last()
-            .is_some_and(std::vec::Vec::is_empty)
-        {
+        while order.layers.last().is_some_and(std::vec::Vec::is_empty) {
             order.layers.pop();
         }
         let _ = max_observed_depth; // 已通过 layers.len() - 1 表达

@@ -13,8 +13,8 @@
 //! 10. 连通分量
 
 use crate::{
-    BfsOrder, DfsOrder, Edge, EdgeId, Graph, GraphError, GraphTraverser, GraphWalker, Node,
-    NodeId, RelationKind,
+    BfsOrder, DfsOrder, Edge, EdgeId, Graph, GraphError, GraphTraverser, GraphWalker, Node, NodeId,
+    RelationKind,
 };
 
 // ============================================================================

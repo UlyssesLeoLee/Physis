@@ -91,7 +91,13 @@ fn valid_profile() -> impl Strategy<Value = PhysicsProfile> {
 
 /// 构造有效 BodySpec 的策略。
 fn valid_body_spec() -> impl Strategy<Value = BodySpec> {
-    (unit_range(), unit_range(), unit_range(), unit_range(), valid_profile())
+    (
+        unit_range(),
+        unit_range(),
+        unit_range(),
+        unit_range(),
+        valid_profile(),
+    )
         .prop_map(|(radius, x, y, z, profile)| {
             BodySpec::builder()
                 .shape(ShapeDesc::Sphere { radius })
@@ -318,7 +324,10 @@ fn profile_validate_rejects_negative_mass() {
     let mut p = PhysicsProfile::default_solid();
     p.mass = -1.0;
     let err = p.validate().unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "mass", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent { field: "mass", .. }
+    ));
 }
 
 #[test]
@@ -327,7 +336,13 @@ fn profile_validate_rejects_invalid_density() {
     p.mass = 1.0;
     p.density = 0.0;
     let err = p.validate().unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "density", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent {
+            field: "density",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -335,7 +350,13 @@ fn profile_validate_rejects_friction_out_of_range() {
     let mut p = PhysicsProfile::default_solid();
     p.friction = 1.5;
     let err = p.validate().unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "friction", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent {
+            field: "friction",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -343,7 +364,13 @@ fn profile_validate_rejects_zero_iterations() {
     let mut p = PhysicsProfile::default_solid();
     p.solver_iterations = 0;
     let err = p.validate().unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "solver_iterations", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent {
+            field: "solver_iterations",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -351,7 +378,10 @@ fn profile_validate_rejects_nan_mass() {
     let mut p = PhysicsProfile::default_solid();
     p.mass = f32::NAN;
     let err = p.validate().unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "mass", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent { field: "mass", .. }
+    ));
 }
 
 #[test]
@@ -364,7 +394,10 @@ fn builder_missing_shape() {
         .profile(PhysicsProfile::default_solid())
         .build();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::BodySpecMissingField { field: "shape" }));
+    assert!(matches!(
+        err,
+        CoreError::BodySpecMissingField { field: "shape" }
+    ));
 }
 
 #[test]
@@ -374,7 +407,12 @@ fn builder_missing_transform() {
         .profile(PhysicsProfile::default_solid())
         .build();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::BodySpecMissingField { field: "initial_transform" }));
+    assert!(matches!(
+        err,
+        CoreError::BodySpecMissingField {
+            field: "initial_transform"
+        }
+    ));
 }
 
 #[test]
@@ -387,7 +425,10 @@ fn builder_missing_profile() {
         })
         .build();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::BodySpecMissingField { field: "profile" }));
+    assert!(matches!(
+        err,
+        CoreError::BodySpecMissingField { field: "profile" }
+    ));
 }
 
 #[test]
@@ -402,7 +443,13 @@ fn builder_is_static_mismatch() {
         .is_static(true)
         .build();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "is_static", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent {
+            field: "is_static",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -417,13 +464,22 @@ fn builder_is_static_mismatch_reverse() {
         .is_static(false)
         .build();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::ProfileInconsistent { field: "is_static", .. }));
+    assert!(matches!(
+        err,
+        CoreError::ProfileInconsistent {
+            field: "is_static",
+            ..
+        }
+    ));
 }
 
 #[test]
 fn builder_static_with_mass_zero_valid() {
     let spec = BodySpec::builder()
-        .shape(ShapeDesc::Plane { normal: [0.0, 1.0, 0.0], offset: 0.0 })
+        .shape(ShapeDesc::Plane {
+            normal: [0.0, 1.0, 0.0],
+            offset: 0.0,
+        })
         .transform(InitialTransform {
             translation: Vec3::ZERO,
             rotation_yaw_pitch_roll: [0.0; 3],
@@ -440,7 +496,11 @@ fn builder_static_with_mass_zero_valid() {
 fn runtime_empty_rejected() {
     let r = RuntimeDescriptor::empty().validate();
     let err = r.unwrap_err();
-    assert!(matches!(err, CoreError::DescriptorEmpty), "expected DescriptorEmpty, got {:?}", err);
+    assert!(
+        matches!(err, CoreError::DescriptorEmpty),
+        "expected DescriptorEmpty, got {:?}",
+        err
+    );
 }
 
 #[test]
@@ -460,7 +520,10 @@ fn runtime_with_capacity_initial() {
 
 #[test]
 fn body_handle_debug_copy_eq() {
-    let h = BodyHandle { index: 7, generation: 3 };
+    let h = BodyHandle {
+        index: 7,
+        generation: 3,
+    };
     let h2 = h; // Copy
     assert_eq!(h, h2);
     let _dbg = format!("{:?}", h);
@@ -469,7 +532,13 @@ fn body_handle_debug_copy_eq() {
 #[test]
 fn lod_tag_values_distinct() {
     use PhysicsLodTag::*;
-    let vals = [Lod0Full, Lod1Reduced, Lod2Approximation, Lod3CachedBehavior, Lod4Static];
+    let vals = [
+        Lod0Full,
+        Lod1Reduced,
+        Lod2Approximation,
+        Lod3CachedBehavior,
+        Lod4Static,
+    ];
     for (i, a) in vals.iter().enumerate() {
         for b in &vals[i + 1..] {
             assert_ne!(a, b);

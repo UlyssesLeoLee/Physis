@@ -389,7 +389,10 @@ fn slab_invalid_handle_get_fails_on_empty() {
     // 空 slab 用 INVALID 句柄 get 必返 OutOfBounds(0, 0)
     let slab: Slab<i32> = Slab::with_capacity(0);
     let err = slab.get(SlabHandle::INVALID).unwrap_err();
-    assert!(matches!(err, SlabError::OutOfBounds(0, 0) | SlabError::GenerationMismatch { .. }));
+    assert!(matches!(
+        err,
+        SlabError::OutOfBounds(0, 0) | SlabError::GenerationMismatch { .. }
+    ));
 }
 
 #[test]
