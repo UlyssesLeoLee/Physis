@@ -13,7 +13,7 @@ members = [
     # "crates/gvpe-constraint",
     "crates/gvpe-solver",
     # "crates/gvpe-island",
-    # "crates/gvpe-scheduler",
+    "crates/gvpe-scheduler",
     # "crates/gvpe-runtime",
     "crates/gvpe-ffi",
     "crates/gvpe-graph",

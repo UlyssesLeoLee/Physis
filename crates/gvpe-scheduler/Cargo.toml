@@ -1,0 +1,22 @@
+[package]
+name = "gvpe-scheduler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GVPE task graph + 4-stage scheduler (Predict / Collision / Solver / Integrate). Single-threaded MVP per GVPE-DOC-09 (basic multithreading)."
+
+[dependencies]
+# Stage trait 中典型持有 IslandHandle（gvpe-core 定义），并可能读写 body 速度 / 位置
+# （gvpe-math::Vec3）。具体动力学 / 碰撞 / 求解 实体由使用方注入，本 crate 不直接依赖
+# gvpe-collision / gvpe-solver —— 那是 v0.4+ 接线阶段的工作。
+gvpe-core = { workspace = true }
+gvpe-math = { workspace = true }
+
+[dev-dependencies]
+# 顺序验证用 Mutex / Arc 记录调用序列。
+# 注：MVP 限单线程，dev-deps 只用于测试调用顺序，不参与产品代码。
+
+[lints]
+workspace = true
