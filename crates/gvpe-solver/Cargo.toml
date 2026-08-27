@@ -1,0 +1,24 @@
+[package]
+name = "gvpe-solver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GVPE 约束求解器：Sequential Impulse / PGS MVP 实现 + warm-start + Sleeping 状态机 + 摩擦锥 box 近似。"
+
+[dependencies]
+gvpe-math = { workspace = true }
+gvpe-core = { workspace = true }
+gvpe-memory = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+deterministic = []  # DEC-006：feature 骨架化
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true
