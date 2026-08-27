@@ -60,3 +60,4 @@ check*.err.txt
 
 # Transient local verification logs (cargo build / test / clippy / fmt / tree output)
 *.log
+target-dynamics/
