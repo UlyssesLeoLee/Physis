@@ -96,9 +96,12 @@ impl Shape {
 ///
 /// 区别于 [`f32::signum`]（对 `0.0` 返 `1.0`）；GJK Box support 需要
 /// "0 输入返 0 输出" 语义。
+///
+/// 注：原为 `const fn`，但 MSRV 1.75 不允许 `const fn` 内的浮点比较（E0658），
+/// 1.98 起允许。退化为 `fn` 以兼容 1.75 MSRV（per CI 硬门禁）。
 #[inline]
 #[must_use]
-const fn sgn(v: f32) -> f32 {
+fn sgn(v: f32) -> f32 {
     if v > 0.0 {
         1.0
     } else if v < 0.0 {
