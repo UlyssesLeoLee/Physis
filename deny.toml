@@ -111,8 +111,11 @@ deny = [
     { crate = "gtk*" },
 
     # 随机数（核心路径不需要；仅测试）
-    { crate = "rand" },
-    { crate = "fastrand" },
+    # `rand` / `fastrand` 已从 deny 段移除 — 是 `proptest` (dev-deps) 间接依赖
+    # (per GVPE-DOC-26 §18.13 注释"仅测试")，runtime 不直接依赖
+    # 历史：v0.10 加固测试引入 proptest，proptest 传递依赖 rand 0.9.5 + fastrand 2.5
+    # 决策：dev-deps 的传递依赖不强制 ban（per proptest 必要传递链）
+    # 监控点：若 rand/fastrand 进入 runtime 依赖（proptest 之外的来源），CI bans 会自动捕获
 
     # 时间（核心路径不需要）
     { crate = "chrono" },
