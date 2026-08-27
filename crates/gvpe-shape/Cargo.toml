@@ -1,0 +1,18 @@
+[package]
+name = "gvpe-shape"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "基础 + 凸形状描述（Sphere/Box/Capsule/Plane/ConvexHull）、AABB、Shape 抽象、ShapeHandle 共享。供 gvpe-collision / gvpe-ffi 复用。"
+
+[dependencies]
+gvpe-math = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true

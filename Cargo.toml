@@ -7,8 +7,8 @@ members = [
     "crates/gvpe-math",
     "crates/gvpe-core",
     "crates/gvpe-memory",
-    # "crates/gvpe-shape",
-    "crates/gvpe-collision",
+    "crates/gvpe-shape",
+    # "crates/gvpe-collision",
     # "crates/gvpe-dynamics",
     # "crates/gvpe-constraint",
     # "crates/gvpe-solver",
@@ -56,6 +56,7 @@ pretty_assertions = "1.4"
 gvpe-math = { path = "crates/gvpe-math", version = "0.1.0" }
 gvpe-core = { path = "crates/gvpe-core", version = "0.1.0" }
 gvpe-memory = { path = "crates/gvpe-memory", version = "0.1.0" }
+gvpe-shape = { path = "crates/gvpe-shape", version = "0.1.0" }
 gvpe-ffi = { path = "crates/gvpe-ffi", version = "0.1.0" }
 
 # 工作空间级 profile
