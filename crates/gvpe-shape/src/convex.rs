@@ -26,7 +26,7 @@ use thiserror::Error;
 use crate::shape::{Shape, ShapeType};
 
 /// 凸包构造错误。
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum ConvexError {
     /// 点数 < 4（凸包最少需要 4 个非共面点）。
     #[error("ConvexHull 点数不足: {0} < 4")]

@@ -1,14 +1,35 @@
 //! `gvpe-math` v0.7/v0.8 加固测试 —— property-based。
 //!
 //! 加固目标：
-//! - Vec3 代数恒等式（交换律 / 分配律 / 零元 / 逆元）
-//! - Vec3 归一化 / 距离 / 投影
-//! - Quat 单位元 / Hamilton 积结合律 / slerp 端点 / look_rotation 性质
-//! - Aabb 合并 / 交集 / 包含单调性
-//! - Transform lerp 端点
+//! - `Vec3` 代数恒等式（交换律 / 分配律 / 零元 / 逆元）
+//! - `Vec3` 归一化 / 距离 / 投影
+//! - `Quat` 单位元 / Hamilton 积结合律 / slerp 端点 / look_rotation 性质
+//! - `Aabb` 合并 / 交集 / 包含单调性
+//! - `Transform` lerp 端点
 //!
 //! 加固 commit 基线：v0.7 (58f0a31) + v0.8 (63b9921)。
 //! 修订者：Mavis 接手 agent per DEC-008 (2026-08-27 08:00 JST 指令)。
+
+// 测试模块 lint 集中允许：见 `crates/gvpe-core/tests/integration_profile_runtime.rs` 同段说明
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_parens)]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::collection_is_never_read)]
+#![allow(clippy::double_parens)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::needless_borrow)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::match_wildcard_for_single_variants)]
 
 use gvpe_math::{Aabb, Mat3, Quat, Transform, Vec3};
 use proptest::prelude::*;

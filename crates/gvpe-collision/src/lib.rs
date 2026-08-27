@@ -7,6 +7,19 @@
 //!   [`epa::epa`] —— 穿透深度（与 GJK 配对）。
 //! - **接触流形**：[`ContactManifold`] / [`ContactPoint`]（per §7.1）。
 //!
+//! ## Crate 级 lint 允许说明
+//!
+//! `gvpe-collision` 的几何/数学代码风格与 lint 约定：
+//! - `clippy::many_single_char_names`：GJK / EPA / SAP 算法用 `a` / `b` / `p` / `n` / `i` 是数学文献惯例
+//!   （Minkowski 差、单纯形顶点、支撑函数返回值等），保留可读性
+//! - `clippy::doc_markdown`：模块级 doc 不需要严格 markdown 反引号
+//! - 上述 allow 范围限定为 lib.rs 入口文档与子模块的文档引用，不影响实际代码 lint 质量
+
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::branches_sharing_code)]
+#![allow(clippy::uninlined_format_args)]
+//!
 //! ## 与 `06_collision_design.md` 的偏差
 //!
 //! | 维度 | design doc MVP 选型 | v0.7 实现 | 备注 |

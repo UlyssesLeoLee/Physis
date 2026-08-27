@@ -1,12 +1,31 @@
 //! `gvpe-memory` v0.6 加固测试 —— property-based + 边界。
 //!
 //! 加固目标：
-//! - Pool: acquire/release 平衡 / 索引越界错误 / 双重 release / iter 顺序 / get_or_insert_with
-//! - Slab: use-after-free 检测 / 释放后句柄 re-allocate / iter 顺序
-//! - Arena: alloc 顺序布局 / reset 后 cursor 归零 / overflow 错误码 / alloc_slice 对齐
+//! - `Pool`: acquire/release 平衡 / 索引越界错误 / 双重 release / iter 顺序 / get_or_insert_with
+//! - `Slab`: use-after-free 检测 / 释放后句柄 re-allocate / iter 顺序
+//! - `Arena`: alloc 顺序布局 / reset 后 cursor 归零 / overflow 错误码 / alloc_slice 对齐
 //!
 //! 加固 commit 基线：v0.6 (1f789e9)。
 //! 修订者：Mavis 接手 agent per DEC-008 (2026-08-27 08:00 JST 指令)。
+
+// 测试模块 lint 集中允许：见 `crates/gvpe-core/tests/integration_profile_runtime.rs` 同段说明
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_parens)]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::collection_is_never_read)]
+#![allow(clippy::double_parens)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::match_wildcard_for_single_variants)]
 
 use gvpe_memory::{Arena, ArenaError, Pool, PoolError, Slab, SlabError, SlabHandle};
 use proptest::prelude::*;

@@ -141,15 +141,12 @@ pub fn epa(a: &Shape, b: &Shape) -> Option<PenetrationInfo> {
 
     for _ in 0..MAX_ITERATIONS {
         // 找最近面
-        let Some((face_idx, closest)) = poly
+        let (face_idx, closest) = poly
             .faces
             .iter()
             .enumerate()
             .min_by(|(_, x), (_, y)| x.distance.partial_cmp(&y.distance).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(i, f)| (i, *f))
-        else {
-            return None;
-        };
+            .map(|(i, f)| (i, *f))?;
 
         // 沿法向 support
         let p = a.support(closest.normal) - b.support(-closest.normal);

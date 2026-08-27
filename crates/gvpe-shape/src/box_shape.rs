@@ -26,7 +26,7 @@ impl Box3 {
     /// 三轴相同半尺寸的立方盒。
     #[inline]
     #[must_use]
-    pub fn cube(half_extent: f32) -> Self {
+    pub const fn cube(half_extent: f32) -> Self {
         Self::new([half_extent, half_extent, half_extent])
     }
 }

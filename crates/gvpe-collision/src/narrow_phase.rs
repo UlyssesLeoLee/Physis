@@ -217,7 +217,7 @@ fn do_simplex(simplex: &mut Simplex, direction: &mut Vec3) -> bool {
     }
 }
 
-fn do_point(simplex: &mut Simplex, direction: &mut Vec3) -> bool {
+fn do_point(simplex: &Simplex, direction: &mut Vec3) -> bool {
     // size=1：simplex 仅一个顶点；新方向指向 -a 即可（不再 modify simplex）。
     // 取 `simplex` 借用仅为统一签名（与 do_line/tri/tet 一致）。
     let a = simplex.points[0];

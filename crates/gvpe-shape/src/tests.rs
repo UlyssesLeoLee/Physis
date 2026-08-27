@@ -37,8 +37,11 @@ fn box3_local_aabb_matches_half_extents() {
     assert_eq!(aabb.max, Vec3::new(1.0, 2.0, 3.0));
     // cube 构造器
     let c = Box3::cube(0.5);
-    assert_eq!(c.half_extents, [0.5, 0.5, 0.5]);
-    assert_eq!(c.local_aabb().min, Vec3::splat(-0.5));
+    #[allow(clippy::float_cmp)] // 0.5 在 f32 精确表示(2^-1),逐位比较无误差
+    {
+        assert_eq!(c.half_extents, [0.5, 0.5, 0.5]);
+        assert_eq!(c.local_aabb().min, Vec3::splat(-0.5));
+    }
 }
 
 #[test]
