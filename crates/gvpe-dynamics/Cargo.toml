@@ -1,0 +1,26 @@
+[package]
+name = "gvpe-dynamics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GVPE 刚体动力学：状态、时间步进、力累加、主控制器（v0.3 MVP）。"
+
+[dependencies]
+gvpe-core = { workspace = true }
+gvpe-math = { workspace = true }
+gvpe-memory = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[features]
+default = []
+deterministic = []  # DEC-006：与 gvpe-core / gvpe-collision 对齐
+
+[dev-dependencies]
+proptest = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true
